@@ -1,9 +1,9 @@
-title:              Clean Blog
-email:              your-email@example.com
+title:              rychlovláďa.cz
+email:              jiri001meitner@gmail.com
 description:        A Blog Theme by Start Bootstrap
 author:             Start Bootstrap
-baseurl:            "/startbootstrap-clean-blog-jekyll"
-url:                "https://startbootstrap.github.io"
+baseurl:            "/rychlovlada"
+url:                "https://jiri001meitner.github.io/rychlovlada/"
 
 # Social Profiles
 twitter_username:   SBootstrap
