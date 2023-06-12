@@ -6,24 +6,9 @@ background: '/img/bg-contact.jpg'
 form: false
 ---
 
-<h2 class="section-heading">Kde nás najdete:</h2>
-<p>Vestibul metra B Opatov</p>
-<div class="vcard">
-  <a class="url fn" href="http://www.rychlovlada.cz">RychloVláďa.cz</a>
-  <div class="adr">
-    <div class="street-address">Chilská 1</div>
-    <span class="locality">Praha</span>,
-    <span class="postal-code">149 00</span>
-    <div class="country-name">CZ</div>
-  </div>
-  <div class="tel"><a href="tel:+420736417900">+420 736 417 900</a></div>
-  <div class="geo">
-    <span class="latitude">50.0277214</span>,
-    <span class="longitude">14.5079822</span>
-  </div>
-</div>
+{% include hcard.html %}
 
-
+<!-- zakódováno, protože formulář nepoužíváme
 <p>Máte dotaz k objednávce?</p>
 <form name="sentMessage" id="contactForm" novalidate>
   <div class="control-group">
@@ -60,3 +45,4 @@ form: false
     <button type="submit" class="btn btn-primary" id="sendMessageButton">Odeslat</button>
   </div>
 </form>
+-->
