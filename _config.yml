@@ -1,6 +1,6 @@
 title:              rychlovláďa.cz
 email:              
-description:        Rychloopravna obuvi a rychločistírna
+description:        Rychloopravna obuvi, výroba klíčů, obuvnické, ortopedické a brašnářské práce
 author:             Máca a Vláďa
 baseurl:            "/rychlovlada"
 url:                "https://jiri001meitner.github.io/rychlovlada/"
@@ -23,3 +23,6 @@ plugins:
   - jekyll-feed
   - jekyll-paginate
   - jekyll-sitemap ## Uncomment this line to silently generate a sitemaps.org compliant sitemap for your Jekyll site
+
+exclude:
+  - "_posts/*"
