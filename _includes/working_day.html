@@ -1,0 +1,23 @@
+<h3>Pracovní doba:</h3>
+
+<p>Pondělí - Čtvrtek: 8:00 - 18:00</p>
+<p>Pátek v lichém týdnu: 8:00 - 14:00</p>
+<p>Pátek v sudém týdnu: zavřeno</p>
+<p id="fridayHours"></p>
+<script>
+// Získáme aktuální datum a den v týdnu
+let now = new Date();
+let dayOfWeek = now.getDay();
+
+// Pokud je sobota, neděle, nebo pátek po pracovní době (po 18:00), posuneme datum na následující pátek
+if (dayOfWeek === 6 || dayOfWeek === 0 || (dayOfWeek === 5 && now.getHours() >= 18)) {
+  now.setDate(now.getDate() + (5 + 7 - dayOfWeek) % 7);
+}
+
+// Určíme, zda je týden sudý nebo lichý
+let weekNumber = Math.ceil(((now - new Date(now.getFullYear(),0,1)) / 86400000 + now.getDay()+1)/7);
+let isEvenWeek = weekNumber % 2 === 0;
+
+let fridayHoursText = isEvenWeek ? "Zavřeno" : "8:00 - 14:00";
+document.getElementById("fridayHours").textContent = "Tento pátek: " + fridayHoursText;
+</script>
