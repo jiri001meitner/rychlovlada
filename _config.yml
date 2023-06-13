@@ -4,6 +4,11 @@ description:        Rychloopravna obuvi, výroba klíčů, obuvnické, ortopedic
 author:             Máca a Vláďa
 baseurl:            "/rychlovlada"
 url:                "https://jiri001meitner.github.io/rychlovlada/"
+creator_name:       Jiří Meitner
+creator_linkedin:   "https://www.linkedin.com/in/meitner/"
+creator_web:        "https://itislove.cz"
+creator_web_name:   ITisLove.cz
+creator_web_moto:   IT služby s láskou
 
 # Social Profiles
 twitter_username:   
@@ -24,5 +29,5 @@ plugins:
   - jekyll-paginate
   - jekyll-sitemap ## Uncomment this line to silently generate a sitemaps.org compliant sitemap for your Jekyll site
 
-exclude:
-  - "_posts/*"
+# exclude:
+#  - "_posts/*"
