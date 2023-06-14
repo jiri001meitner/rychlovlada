@@ -2,7 +2,8 @@ title:              rychlovláďa.cz
 email:              
 description:        Rychloopravna obuvi, výroba klíčů, obuvnické, ortopedické a brašnářské práce
 author:             Máca a Vláďa
-baseurl:            "/rychlovlada"
+#baseurl:            "/rychlovlada"
+baseurl:            ''
 url:                "https://jiri001meitner.github.io/rychlovlada/"
 creator_name:       Jiří Meitner
 creator_linkedin:   "https://www.linkedin.com/in/meitner/"
