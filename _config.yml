@@ -1,15 +1,11 @@
-title:              rychlovláďa.cz
+title:              RychloVláďa.cz
 email:              
 description:        Rychloopravna obuvi, výroba klíčů, obuvnické, ortopedické a brašnářské práce
 author:             Máca a Vláďa
 #baseurl:            "/rychlovlada"
 baseurl:            ''
-url:                "https://jiri001meitner.github.io/rychlovlada/"
-creator_name:       Jiří Meitner
-creator_linkedin:   "https://www.linkedin.com/in/meitner/"
-creator_web:        "https://itislove.cz"
-creator_web_name:   ITisLove.cz
-creator_web_moto:   IT služby s láskou
+#url:                "https://jiri001meitner.github.io/rychlovlada/"
+url: "https://rychlovlada.cz"
 
 # Social Profiles
 twitter_username:   
@@ -32,3 +28,21 @@ plugins:
 
 # exclude:
 #  - "_posts/*"
+
+##### moje proměnné, volat takto {{ site.creator_name }}
+creator_name:       "Jiří Meitner"
+creator_linkedin:   "https://www.linkedin.com/in/meitner/"
+creator_web:        "https://itislove.cz"
+creator_web_name:   "ITisLove.cz"
+creator_web_moto:   "IT služby s láskou"
+streetAddress:      "Chilská 1"
+addressLocality:    "Praha 11-Opatov"
+addressRegion:      Praha
+postalCode:         "149 00"
+addressCountry:     ČR
+areaServed:         Praha
+telephone_long:      "+420 736 417 900"
+telephone:          "+420736417900"
+priceRange:         "$$"
+latitude:           '50.0277214'
+longtitude:         '14.5079822'

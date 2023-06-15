@@ -4,12 +4,13 @@
   <a class="url fn org" href="http://www.rychlovlada.cz">RychloVláďa.cz</a><br>
   <div>Adresa:</div>
   <div class="adr">
-    <div class="street-address">Chilská 1</div>
-    <span class="region">Praha</span> 11-<span class="locality">Opatov</span><br>
-    <span class="postal-code">149 00</span>, <span class="country-name">CZ</span>
+    <div class="street-address">{{ site.streetAddress }}</div>
+    <div class="locality">{{ site.addressLocality }}</div>
+    <div class="region">{{ site.addressRegion }}</div>
+    <span class="postal-code">{{ site.postalCode }}</span>, <span class="country-name">{{ site.addressCountry }}</span>
   </div>
   <br>
-  <div>Telefon: <span class="tel btn"><a href="tel:+420736417900">+420 736 417 900</a></span></div>
+  <div>Telefon: <span class="tel btn"><a href="tel:{{ site.telephone }}">{{ site.telephone_long }}</a></span></div>
   <div>e-mail:
     <span>
       <a href="#mail" class="email btn" onclick="var email = 'marcela.olb[zavinac]seznam.cz'; this.href = 'mailto:' + email.replace('[zavinac]', '@'); return true;">marcela.olb[zavinac]seznam.cz</a>
@@ -18,8 +19,8 @@
   <br>
   <div>GPS:</div>
   <div class="geo">
-    <span class="latitude">50.0277214</span>,
-    <span class="longitude">14.5079822</span>
+    <span class="latitude">{{ site.latitude }}</span>,
+    <span class="longitude">{{ site.longtitude }}</span>
     <a class='btn' href="https://goo.gl/maps/iNxbfPzqraGs1Hv79">Zobrazit na Google Maps</a>
   </div>
   <br>

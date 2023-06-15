@@ -1,0 +1,8 @@
+# This is Git's per-user configuration file.
+[user]
+# Please adapt and uncomment the following lines:
+	name = jiri001meitner
+	email = jiri001meitner@gmail.com
+	signingkey = /home/medved/.ssh/id_ed25519
+[gpg]
+	format = ssh
