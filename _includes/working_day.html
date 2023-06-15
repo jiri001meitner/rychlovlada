@@ -1,5 +1,5 @@
 <div itemscope itemtype="https://schema.org/Store">
-<meta itemprop="name" content="{{ site.tittle }}">
+<meta itemprop="name" content="{{ site.title }}">
 <img itemprop="image" class="img-fluid" src="/assets/logo.svg" width="500" height="335" alt="Logo {{ site.tittle }}">
  <meta itemprop="priceRange" content="{{ site.priceRange }}">
  <meta itemprop="telephone" content="{{ site.telephone_long }}">
@@ -15,6 +15,19 @@
   <p>Pátek v sudém týdnu: Zavřeno</p>
 
   <p id="nextFridayHours"></p>
+
+  <!-- Služby a jejich hodnocení -->
+  <div itemprop="aggregateRating" itemscope itemtype="https://schema.org/AggregateRating">
+    <div itemprop="itemReviewed" itemscope itemtype="https://schema.org/LocalBusiness">
+      <meta itemprop="name" content="{{ site.title }}">
+    </div>
+    <meta itemprop="ratingValue" content="4.8">
+    <meta itemprop="reviewCount" content="123">
+    <meta itemprop="bestRating" content="5">
+    <meta itemprop="worstRating" content="3">
+  </div>
+
+
 </div>
 
 <script>
