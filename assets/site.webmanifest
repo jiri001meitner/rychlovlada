@@ -1,5 +1,5 @@
 {
-  "name":"RychloVláďa.cz - Rychloopravna obuvi, výroba klíčů, obuvnické, ortopedické a brašnářské práce",
+  "name":"RychloVláďa - Rychloopravna obuvi, výroba klíčů, obuvnické, ortopedické a brašnářské práce",
   "short_name":"RychloVláďa.cz",
   "icons":[
     {"src":"https://rychlovlada.cz/assets/android-chrome-192x192.png","sizes":"192x192","type":"image/png"},
@@ -12,4 +12,3 @@
   "background_color":"#ffffff",
   "display":"standalone"
 }
-
