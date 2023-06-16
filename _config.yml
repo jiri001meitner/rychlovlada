@@ -1,5 +1,5 @@
 title:              RychloVláďa.cz
-email:              
+email:
 description:        Rychloopravna obuvi, výroba klíčů, obuvnické, ortopedické a brašnářské práce
 author:             Máca a Vláďa
 #baseurl:            "/rychlovlada"
@@ -8,10 +8,10 @@ baseurl:            ''
 url: "https://rychlovlada.cz"
 
 # Social Profiles
-twitter_username:   
-github_username:    
-facebook_username:  
-instagram_username:  
+twitter_username:
+github_username:
+facebook_username:
+instagram_username:
 linkedin_username:
 
 # Add your google-analytics ID here to activate google analytics
