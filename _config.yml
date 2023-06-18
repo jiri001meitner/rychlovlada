@@ -29,7 +29,12 @@ plugins:
 # exclude:
 #  - "_posts/*"
 
-##### moje proměnné, volat takto {{ site.creator_name }}
+##### další proměnné, volat takto {{ site.creator_name }}
+ICO:                19342811
+vedouci:            "Marcela Olbertová"
+vedouci_nickname:   "Máca"
+vedouci_1_name:     "Marcela"
+vedouci_2_name:     "Olbertová"
 creator_name:       "Jiří Meitner"
 creator_linkedin:   "https://www.linkedin.com/in/meitner/"
 creator_web:        "https://itislove.cz"
