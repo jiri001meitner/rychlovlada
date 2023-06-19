@@ -49,5 +49,7 @@ areaServed:         Praha
 telephone_long:      "+420 736 417 900"
 telephone:          "+420736417900"
 priceRange:         "$$"
-latitude:           '50.0277214'
-longtitude:         '14.5079822'
+latitude:           '50.0281200N'
+longtitude:         '14.5081800E'
+google_maps:        'https://goo.gl/maps/CB1eMiGUmR5X8sMeA'
+mapy_cz:            'https://mapy.cz/s/gokebejoga'
