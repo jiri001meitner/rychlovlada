@@ -1,0 +1,61 @@
+<section>
+<div itemscope itemtype="https://schema.org/Store">
+<meta itemprop="name" content="{{ site.title }}">
+<img class="img-fluid" src="/assets/boty.svg" width="500" height="335" alt="Boty {{ site.title }}">
+<meta itemprop="image" content="/assets/logo.svg">
+ <meta itemprop="priceRange" content="{{ site.priceRange }}">
+ <meta itemprop="telephone" content="{{ site.telephone_long }}">
+  <div itemprop="address" itemscope itemtype="https://schema.org/PostalAddress">
+    <meta itemprop="streetAddress" content="{{ site.streetAddress }}">
+    <meta itemprop="postalCode" content="{{ site.postalCode }}">
+    <meta itemprop="addressLocality" content="{{ site.addressLocality }}">
+  </div>
+
+  <h3 class="section-heading">Pracovní doba:</h3>
+  <p itemprop="openingHours" content="Mo-Th 08:00-18:00">Pondělí - Čtvrtek: 8:00 - 18:00</p>
+  <p itemprop="openingHours" content="Fr 08:00-14:00">Pátek v lichém týdnu: 8:00 - 14:00</p>
+  <p>Pátek v sudém týdnu: Zavřeno</p>
+
+  <p id="nextFridayHours"></p>
+
+  <!-- Služby a jejich hodnocení -->
+  <div itemprop="aggregateRating" itemscope itemtype="https://schema.org/AggregateRating">
+    <div itemprop="itemReviewed" itemscope itemtype="https://schema.org/LocalBusiness">
+      <meta itemprop="name" content="{{ site.title }}">
+    </div>
+    <meta itemprop="ratingValue" content="4.8">
+    <meta itemprop="reviewCount" content="123">
+    <meta itemprop="bestRating" content="5">
+    <meta itemprop="worstRating" content="3">
+  </div>
+
+
+</div>
+
+<script>
+// Získáme aktuální datum a den v týdnu
+let now = new Date();
+let dayOfWeek = now.getDay();
+
+// Pokud je sobota, neděle, nebo pátek po pracovní době (po 18:00), posuneme datum na následující pátek
+if (dayOfWeek === 6 || dayOfWeek === 0 || (dayOfWeek === 5 && now.getHours() >= 18)) {
+  now.setDate(now.getDate() + (5 + 7 - dayOfWeek) % 7);
+} else if (dayOfWeek < 5) {
+  now.setDate(now.getDate() + (5 - dayOfWeek));
+}
+
+// Určíme, zda je týden sudý nebo lichý podle ISO 8601
+let start = new Date(now.getFullYear(), 0, 1);
+let weekNumber = Math.ceil((((now - start) / 86400000 + start.getDay() + 1)/7));
+
+// Korekce pro ISO 8601
+if(start.getDay() > 4) {
+  weekNumber--;
+}
+
+let isEvenWeek = weekNumber % 2 === 0;
+
+let fridayHoursText = isEvenWeek ? "Tento pátek (" + now.toLocaleDateString() + "): Zavřeno" : "Tento pátek (" + now.toLocaleDateString() + "): 8:00 - 14:00";
+document.getElementById("nextFridayHours").textContent = fridayHoursText;
+</script>
+</section>

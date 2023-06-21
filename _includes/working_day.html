@@ -18,19 +18,25 @@
 
   <p id="nextFridayHours"></p>
 
-  <!-- Služby a jejich hodnocení -->
-  <div itemprop="aggregateRating" itemscope itemtype="https://schema.org/AggregateRating">
-    <div itemprop="itemReviewed" itemscope itemtype="https://schema.org/LocalBusiness">
-      <meta itemprop="name" content="{{ site.title }}">
-    </div>
+<!-- Služby a jejich hodnocení -->
+<div itemprop="aggregateRating" itemscope itemtype="https://schema.org/AggregateRating">
     <meta itemprop="ratingValue" content="4.8">
     <meta itemprop="reviewCount" content="123">
     <meta itemprop="bestRating" content="5">
     <meta itemprop="worstRating" content="3">
-  </div>
-
-
+    <div itemprop="itemReviewed" itemscope itemtype="https://schema.org/LocalBusiness">
+        <meta itemprop="name" content="{{ site.title }}">
+        <meta itemprop="image" content="/assets/logo.svg">
+        <meta itemprop="priceRange" content="{{ site.priceRange }}">
+        <meta itemprop="telephone" content="{{ site.telephone_long }}">
+        <div itemprop="address" itemscope itemtype="https://schema.org/PostalAddress">
+            <meta itemprop="streetAddress" content="{{ site.streetAddress }}">
+            <meta itemprop="postalCode" content="{{ site.postalCode }}">
+            <meta itemprop="addressLocality" content="{{ site.addressLocality }}">
+        </div>
+    </div>
 </div>
+
 
 <script>
 // Získáme aktuální datum a den v týdnu
@@ -55,7 +61,32 @@ if(start.getDay() > 4) {
 
 let isEvenWeek = weekNumber % 2 === 0;
 
-let fridayHoursText = isEvenWeek ? "Tento pátek (" + now.toLocaleDateString() + "): Zavřeno" : "Tento pátek (" + now.toLocaleDateString() + "): 8:00 - 14:00";
-document.getElementById("nextFridayHours").textContent = fridayHoursText;
+// Nastavíme platnost otevíracích hodin
+let validThrough = new Date(now);
+validThrough.setHours(isEvenWeek ? 0 : 14);
+validThrough.setMinutes(0);
+validThrough.setSeconds(0);
+validThrough.setMilliseconds(0);
+
+let fridayHoursHTML = isEvenWeek ?
+`<div itemprop="specialOpeningHoursSpecification" itemscope itemtype="https://schema.org/OpeningHoursSpecification">
+    <meta itemprop="validFrom" content="${now.toISOString().split('T')[0]}">
+    <meta itemprop="validThrough" content="${validThrough.toISOString()}">
+    <meta itemprop="dayOfWeek" content="https://schema.org/Friday">
+    <meta itemprop="opens" content="00:00">
+    <meta itemprop="closes" content="00:00">
+    Tento pátek (${now.toLocaleDateString()}): Zavřeno
+</div>` :
+`<div itemprop="specialOpeningHoursSpecification" itemscope itemtype="https://schema.org/OpeningHoursSpecification">
+    <meta itemprop="validFrom" content="${now.toISOString().split('T')[0]}">
+    <meta itemprop="validThrough" content="${validThrough.toISOString()}">
+    <meta itemprop="dayOfWeek" content="https://schema.org/Friday">
+    <meta itemprop="opens" content="08:00">
+    <meta itemprop="closes" content="14:00">
+    Tento pátek (${now.toLocaleDateString()}): 8:00 - 14:00
+</div>`;
+
+document.getElementById("nextFridayHours").innerHTML = fridayHoursHTML;
 </script>
+</div>
 </section>
