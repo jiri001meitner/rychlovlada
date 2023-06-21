@@ -30,7 +30,7 @@ plugins:
 #  - "_posts/*"
 
 ##### další proměnné, volat takto {{ site.creator_name }}
-ICO:                19342811
+ICO:                "19342811"
 vedouci:            "Marcela Olbertová"
 vedouci_nickname:   "Máca"
 vedouci_1_name:     "Marcela"
@@ -42,11 +42,11 @@ creator_web_name:   "ITisLove.cz"
 creator_web_moto:   "IT služby s láskou"
 streetAddress:      "Chilská 1"
 addressLocality:    "Praha 11-Opatov"
-addressRegion:      Praha
+addressRegion:      "Praha"
 postalCode:         "149 00"
-addressCountry:     ČR
-areaServed:         Praha
-telephone_long:      "+420 736 417 900"
+addressCountry:     "ČR"
+areaServed:         "Praha"
+telephone_long:     "+420 736 417 900"
 telephone:          "+420736417900"
 priceRange:         "$$"
 latitude:           '50.0281200N'
