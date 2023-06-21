@@ -12,8 +12,12 @@
   </div>
 
   <h3 class="section-heading">Pracovní doba:</h3>
-  <p itemprop="openingHours" content="Mo-Th 08:00-18:00">Pondělí - Čtvrtek: 8:00 - 18:00</p>
-  <p itemprop="openingHours" content="Fr 08:00-14:00">Pátek v lichém týdnu: 8:00 - 14:00</p>
+  <meta itemprop="dayOfWeek" content="https://schema.org/Monday">
+  <meta itemprop="dayOfWeek" content="https://schema.org/Tuesday">
+  <meta itemprop="dayOfWeek" content="https://schema.org/Wednesday">
+  <meta itemprop="dayOfWeek" content="https://schema.org/Thursday">
+  <p itemprop="openingHours" content="Mo-Th 08:00-18:00">Pondělí - Čtvrtek: <strong><time datetime="08:00">08:00</time> - <time datetime="18:00">18:00</time></strong></p>
+  <p>Pátek v lichém týdnu: <time datetime="08:00">08:00</time> - <time datetime="14:00">14:00</time></p>
   <p>Pátek v sudém týdnu: Zavřeno</p>
 
   <p id="nextFridayHours"></p>
@@ -75,7 +79,7 @@ let fridayHoursHTML = isEvenWeek ?
     <meta itemprop="dayOfWeek" content="https://schema.org/Friday">
     <meta itemprop="opens" content="00:00">
     <meta itemprop="closes" content="00:00">
-    Tento pátek (${now.toLocaleDateString()}): Zavřeno
+    Pátek (${now.toLocaleDateString()}): Zavřeno
 </div>` :
 `<div itemprop="specialOpeningHoursSpecification" itemscope itemtype="https://schema.org/OpeningHoursSpecification">
     <meta itemprop="validFrom" content="${now.toISOString().split('T')[0]}">
@@ -83,7 +87,7 @@ let fridayHoursHTML = isEvenWeek ?
     <meta itemprop="dayOfWeek" content="https://schema.org/Friday">
     <meta itemprop="opens" content="08:00">
     <meta itemprop="closes" content="14:00">
-    Tento pátek (${now.toLocaleDateString()}): 8:00 - 14:00
+    Pátek (${now.toLocaleDateString()}): <strong><time datetime="08:00">08:00</time> - <time datetime="14:00">14:00</time></strong>
 </div>`;
 
 document.getElementById("nextFridayHours").innerHTML = fridayHoursHTML;
