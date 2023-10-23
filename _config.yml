@@ -55,3 +55,7 @@ google_maps:        'https://goo.gl/maps/CB1eMiGUmR5X8sMeA'
 mapy_cz:            'https://mapy.cz/s/gokebejoga'
 keywords:           'Opravna obuvi, Rychloopravna obuvi, Brašnářské práce, zámečnictví, Opatov, Praha 11'
 fb_app_id:          '1268828040504833'
+
+json_data:
+  - author_name: "Jiří Meitner"
+    web: "https://ITisLove.cz"

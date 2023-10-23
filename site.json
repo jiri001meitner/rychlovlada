@@ -1,0 +1,16 @@
+---
+layout: null
+---
+{
+  "site_data": {{ site.json_data | jsonify }},
+  "posts_data": [
+    {% for post in site.posts %}
+      {
+        "title": "{{ post.title }}",
+        "author": "{{ post.author }}",
+        "date": "{{ post.date }}",
+        "content": {{ post.content | jsonify }}
+      }{% unless forloop.last %},{% endunless %}
+    {% endfor %}
+  ]
+}
