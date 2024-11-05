@@ -3,7 +3,17 @@
 <p>Vestibul metra C Opatov</p>
 <div class="h-card" itemscope itemtype="https://schema.org/LocalBusiness">
  <a class="u-url p-name p-org" href="https://rychlovlada.cz" itemprop="url"><strong itemprop="name">RychloVláďa.cz</strong></a><br>
- <p>Kontaktní osoba: <span class="p-nickname" itemprop="employee" itemscope itemtype="https://schema.org/Person">{{ site.vedouci_nickname }}</span> - <span class="p-given-name" itemprop="givenName">{{ site.vedouci_1_name }}</span> <span class="p-family-name" itemprop="familyName">{{ site.vedouci_2_name }}</span>, IČ: {{ site.ICO }}</p>
+<!-- <p>Kontaktní osoba: <span class="p-nickname" itemprop="employee">{{ site.vedouci_nickname }}</span> - <span class="p-given-name" itemprop="givenName">{{ site.vedouci_1_name }}</span> <span class="p-family-name" itemprop="familyName">{{ site.vedouci_2_name }}</span>, IČ: {{ site.ICO }}</p>
+-->
+<p>Kontaktní osoba: 
+  <span itemprop="employee" itemscope itemtype="https://schema.org/Person">
+    <span itemprop="name">{{ site.vedouci_1_name }} {{ site.vedouci_2_name }}</span> 
+    (<span class="p-nickname" itemprop="additionalName">{{ site.vedouci_nickname }}</span>)
+    - <span itemprop="givenName">{{ site.vedouci_1_name }}</span>
+    <span itemprop="familyName">{{ site.vedouci_2_name }}</span>
+  </span>, IČ: {{ site.ICO }}
+</p>
+
   <div>Adresa:</div>
   <div class="p-adr h-adr" itemprop="address" itemscope itemtype="https://schema.org/PostalAddress">
     <div class="p-street-address" itemprop="streetAddress">{{ site.streetAddress }}</div>
