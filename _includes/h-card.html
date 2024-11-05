@@ -6,11 +6,12 @@
 <!-- <p>Kontaktní osoba: <span class="p-nickname" itemprop="employee">{{ site.vedouci_nickname }}</span> - <span class="p-given-name" itemprop="givenName">{{ site.vedouci_1_name }}</span> <span class="p-family-name" itemprop="familyName">{{ site.vedouci_2_name }}</span>, IČ: {{ site.ICO }}</p>
 -->
 <p>Kontaktní osoba: 
-  <span itemprop="employee" itemscope itemtype="https://schema.org/Person">
-    <span itemprop="name">{{ site.vedouci_1_name }} {{ site.vedouci_2_name }}</span>
-    (<span itemprop="additionalName">{{ site.vedouci_nickname }}</span>)
-    <meta itemprop="givenName" content="{{ site.vedouci_1_name }}">
-    <meta itemprop="familyName" content="{{ site.vedouci_2_name }}">
+  <span itemprop="employee" itemscope itemtype="https://schema.org/Person" class="h-card">
+    <span class="p-name" itemprop="name">
+      <span class="p-given-name" itemprop="givenName">{{ site.vedouci_1_name }}</span> 
+      <span class="p-family-name" itemprop="familyName">{{ site.vedouci_2_name }}</span>
+    </span>
+    (<span class="p-nickname" itemprop="additionalName">{{ site.vedouci_nickname }}</span>)
   </span>, IČ: {{ site.ICO }}
 </p>
 
