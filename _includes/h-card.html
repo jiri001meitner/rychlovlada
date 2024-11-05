@@ -7,10 +7,10 @@
 -->
 <p>Kontaktní osoba: 
   <span itemprop="employee" itemscope itemtype="https://schema.org/Person">
-    <span itemprop="name">{{ site.vedouci_1_name }} {{ site.vedouci_2_name }}</span> 
-    (<span class="p-nickname" itemprop="additionalName">{{ site.vedouci_nickname }}</span>)
-    - <span itemprop="givenName">{{ site.vedouci_1_name }}</span>
-    <span itemprop="familyName">{{ site.vedouci_2_name }}</span>
+    <span itemprop="name">{{ site.vedouci_1_name }} {{ site.vedouci_2_name }}</span>
+    (<span itemprop="additionalName">{{ site.vedouci_nickname }}</span>)
+    <meta itemprop="givenName" content="{{ site.vedouci_1_name }}">
+    <meta itemprop="familyName" content="{{ site.vedouci_2_name }}">
   </span>, IČ: {{ site.ICO }}
 </p>
 
