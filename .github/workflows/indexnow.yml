@@ -20,12 +20,15 @@ jobs:
         run: |
           echo "Collecting changed URLs..."
           URLS=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} || true)
+          echo "Raw changed files:" "$URLS"
           if [ -z "$URLS" ]; then
-            URLS=$(git ls-files '_posts/*')
+            URLS=$(git ls-files)
+            echo "Using all files fallback:" "$URLS"
           fi
-          echo "Changed files:" $URLS
-          URLS=$(echo "$URLS" | grep '^_posts/' | grep -E '\\.(md|html)$' | sed 's/^/_site\//;s/\\.md$/.html/;s/\\.html$/.html/' | awk '{print "https://rychlovlada.cz/"$0}')
-          echo "Prepared URLs for IndexNow:" $URLS
+          FILTERED=$(echo "$URLS" | grep '^_posts/' | grep -E '\\.(md|html)$' || true)
+          echo "Filtered post files:" "$FILTERED"
+          URLS=$(echo "$FILTERED" | sed 's/^/_site\//;s/\\.md$/.html/;s/\\.html$/.html/' | awk '{print "https://rychlovlada.cz/"$0}')
+          echo "Prepared URLs for IndexNow:" "$URLS"
           echo "URL_LIST<<EOF" >> $GITHUB_ENV
           echo "$URLS" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -34,6 +37,6 @@ jobs:
         if: env.URL_LIST != ''
         run: |
           INDEXNOW_KEY="5d8b838ff8a8410eebcfe2105c9f4c5d"
-          JSON_BODY=$(printf '{"host":"rychlovlada.cz","key":"%s","urlList":[%s]}' "$INDEXNOW_KEY" "$(echo "$URL_LIST" | sed 's/^/\"/;s/$/\",/' | tr -d '\\n' | sed 's/,$//')")
+          JSON_BODY=$(printf '{"host":"rychlovlada.cz","key":"%s","urlList":[%s]}' "$INDEXNOW_KEY" "$(echo "$URL_LIST" | sed 's/^/\"/;s/$/\",/' | tr -d '\n' | sed 's/,$//')")
           echo "Sending payload: $JSON_BODY"
           curl -H "Content-Type: application/json" -d "$JSON_BODY" "https://api.indexnow.org/indexnow"
