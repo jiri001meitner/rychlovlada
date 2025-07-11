@@ -68,7 +68,10 @@
           </li>
           {% endif %}
         </ul>
-        <p class="copyright text-muted">Web vytvořil &copy; <a href="{{ site.creator_web }}" title="{{ site.creator_web_moto }}">{{ site.creator_web_name }}</a> - <a href="{{ site.creator_linkedin }}" rel="nofollow" title="LinkedIN autora">{{ site.creator_name }}</a> {{ 'now' | date: "%Y" }} pro Mácu a Vláďu.</p>
+        <p class="copyright text-muted">
+          © 2023–{{ 'now' | date: "%Y" }}
+          <a href="{{ site.creator_web }}" title="{{ site.creator_web_moto }}">{{ site.creator_web_name }}</a> – <a href="{{ site.creator_linkedin }}" rel="nofollow" title="LinkedIn autora">{{ site.creator_name }}</a> pro Mácu a Vláďu.
+        </p>
       </div>
     </div>
   </div>
