@@ -19,11 +19,8 @@ jobs:
         id: extract_urls
         run: |
           echo "Collecting changed URLs..."
-          if git rev-parse ${{ github.event.before }} >/dev/null 2>&1; then
-            URLS=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '^_posts/' | grep -E '\\.(md|html)$' | sed 's/^/_site\//;s/\\.md$/.html/;s/\\.html$/.html/' | awk '{print "https://rychlovlada.cz/"$0}')
-          else
-            URLS=$(git ls-files '_posts/*' | grep -E '\\.(md|html)$' | sed 's/^/_site\//;s/\\.md$/.html/;s/\\.html$/.html/' | awk '{print "https://rychlovlada.cz/"$0}')
-          fi
+          URLS=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} 2>/dev/null || git ls-files '_posts/*')
+          URLS=$(echo "$URLS" | grep '^_posts/' | grep -E '\\.(md|html)$' | sed 's/^/_site\//;s/\\.md$/.html/;s/\\.html$/.html/' | awk '{print "https://rychlovlada.cz/"$0}')
           echo "URL_LIST<<EOF" >> $GITHUB_ENV
           echo "$URLS" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
