@@ -15,30 +15,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
-      - name: Extract changed URLs from git diff
+      - name: Extract changed URLs or fallback to sitemap
         id: extract_urls
         run: |
           echo "Collecting changed URLs..."
-          URLS=$(git diff --name-only HEAD~1 HEAD | grep -E '\\.(md|html)$' || true)
-          echo "Changed files:" "$URLS"
-          if [ -z "$URLS" ]; then
-            echo "No changed files detected, skipping notification."
-            exit 0
-          fi
+          URLS=$(git diff --name-only $(git merge-base origin/main HEAD) HEAD | grep -E '\\.(md|html)$' || true)
+          echo "Changed files: $URLS"
           FINAL_URLS=""
-          while read file; do
-            [ -z "$file" ] && continue
-            if [[ "$file" == _posts/* ]]; then
-              url=$(echo "$file" | sed -E 's#^_posts/([0-9]{4})-([0-9]{2})-([0-9]{2})-(.*)\\.(md|html)#https://rychlovlada.cz/\\1/\\2/\\3/\\4.html#')
-              FINAL_URLS="$FINAL_URLS$url\n"
-            else
-              clean_path=$(echo "$file" | sed -E 's#\\.md$#.html#')
-              url="https://rychlovlada.cz/$clean_path"
-              FINAL_URLS="$FINAL_URLS$url\n"
-            fi
-          done <<< "$URLS"
+          if [ -n "$URLS" ]; then
+            while IFS= read -r file; do
+              [ -z "$file" ] && continue
+              if [[ "$file" == _posts/* ]]; then
+                url=$(echo "$file" | sed -E 's#^_posts/([0-9]{4})-([0-9]{2})-([0-9]{2})-(.*)\\.(md|html)#https://rychlovlada.cz/\\1/\\2/\\3/\\4.html#')
+                FINAL_URLS="$FINAL_URLS$url\\n"
+              else
+                clean_path=$(echo "$file" | sed -E 's#\\.md$#.html#')
+                url="https://rychlovlada.cz/$clean_path"
+                FINAL_URLS="$FINAL_URLS$url\\n"
+              fi
+            done <<< "$URLS"
+          else
+            echo "No changed files detected, falling back to sitemap."
+            FINAL_URLS=$(curl -s https://rychlovlada.cz/sitemap.xml | grep -oP '(?<=<loc>)[^<]+' | grep '^https://rychlovlada.cz' || true)
+          fi
           echo -e "Prepared URLs for IndexNow:\n$FINAL_URLS"
           echo "URL_LIST<<EOF" >> $GITHUB_ENV
           echo -e "$FINAL_URLS" >> $GITHUB_ENV
