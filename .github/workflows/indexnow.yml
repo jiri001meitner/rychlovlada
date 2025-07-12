@@ -23,7 +23,7 @@ jobs:
         run: |
           echo "Collecting changed URLs..."
           git fetch origin main
-          URLS=$(git diff --name-only origin/main HEAD | grep -E '\\.(md|html)$' || true)
+          URLS=$(git diff --name-only FETCH_HEAD HEAD | grep -E '\\.(md|html)$' || true)
           echo "Changed files: $URLS"
           FINAL_URLS=""
           if [ -n "$URLS" ]; then
