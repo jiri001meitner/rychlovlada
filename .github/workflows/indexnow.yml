@@ -1,12 +1,16 @@
 name: IndexNow notify on publish
 
 on:
-  push:
+  workflow_run:
+    workflows: ["jekyll-gh-pages"]
+    types:
+      - completed
     branches:
       - main
 
 jobs:
   indexnow:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -14,7 +18,7 @@ jobs:
         id: extract_urls
         run: |
           echo "Collecting URLs from live sitemap..."
-          URLS=$(curl -s https://rychlovlada.cz/sitemap.xml | xmllint --xpath '//*[local-name()="url"]/*[local-name()="loc"]/text()' - | grep '^https://rychlovlada.cz' || true)
+          URLS=$(curl -s https://rychlovlada.cz/sitemap.xml | grep -oP '(?<=<loc>)[^<]+' | grep '^https://rychlovlada.cz' || true)
           echo "Loaded URLs from live sitemap:" "$URLS"
           echo "Prepared URLs for IndexNow:" "$URLS"
           echo "URL_LIST<<EOF" >> $GITHUB_ENV
