@@ -2,11 +2,9 @@ name: IndexNow notify on publish
 
 on:
   workflow_run:
-    workflows: ["jekyll-gh-pages"]
+    workflows: ["Deploy Jekyll to GitHub Pages"]
     types:
       - completed
-    branches:
-      - main
 
 jobs:
   indexnow:
