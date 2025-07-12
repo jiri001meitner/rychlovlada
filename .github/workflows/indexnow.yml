@@ -10,22 +10,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Extract URLs from sitemap
+      - name: Extract URLs from live sitemap
         id: extract_urls
         run: |
-          echo "Collecting URLs from sitemap..."
-          if [ -f "_site/sitemap.xml" ]; then
-            URLS=$(xmllint --xpath '//*[local-name()="url"]/*[local-name()="loc"]/text()' _site/sitemap.xml | grep '^https://rychlovlada.cz' || true)
-            echo "Loaded URLs from sitemap:" "$URLS"
-          else
-            echo "No sitemap found, skipping IndexNow notification."
-            URLS=""
-          fi
+          echo "Collecting URLs from live sitemap..."
+          URLS=$(curl -s https://rychlovlada.cz/sitemap.xml | xmllint --xpath '//*[local-name()="url"]/*[local-name()="loc"]/text()' - | grep '^https://rychlovlada.cz' || true)
+          echo "Loaded URLs from live sitemap:" "$URLS"
           echo "Prepared URLs for IndexNow:" "$URLS"
           echo "URL_LIST<<EOF" >> $GITHUB_ENV
           echo "$URLS" >> $GITHUB_ENV
