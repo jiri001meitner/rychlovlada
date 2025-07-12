@@ -22,8 +22,7 @@ jobs:
         id: extract_changed_urls
         run: |
           echo "Collecting changed URLs..."
-          git fetch origin main
-          URLS=$(git diff --name-only FETCH_HEAD HEAD | grep -E '\\.(md|html)$' || true)
+          URLS=$(git diff --name-only HEAD^ HEAD | grep -E '\\.(md|html)$' || true)
           echo "Changed files: $URLS"
           FINAL_URLS=""
           if [ -n "$URLS" ]; then
@@ -43,6 +42,7 @@ jobs:
           echo "URL_LIST<<EOF" >> $GITHUB_ENV
           echo -e "$FINAL_URLS" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
+
 
       - name: Extract all URLs from sitemap if no changes detected
         if: env.URL_LIST == ''
