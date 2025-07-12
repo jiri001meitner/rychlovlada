@@ -12,12 +12,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Extract URLs from live sitemap
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract changed URLs from git diff
         id: extract_urls
         run: |
-          echo "Collecting URLs from live sitemap..."
-          URLS=$(curl -s https://rychlovlada.cz/sitemap.xml | grep -oP '(?<=<loc>)[^<]+' | grep '^https://rychlovlada.cz' || true)
-          echo "Loaded URLs from live sitemap:" "$URLS"
+          echo "Collecting changed URLs..."
+          URLS=$(git diff --name-only HEAD^ HEAD | grep -E '\\.(md|html)$' || true)
+          echo "Changed files:" "$URLS"
+          URLS=$(echo "$URLS" | while read file; do
+            if [[ "$file" == _posts/* ]]; then
+              echo "$file" | sed -E 's#^_posts/([0-9]{4})-([0-9]{2})-([0-9]{2})-(.*)\\.(md|html)#https://rychlovlada.cz/\\1/\\2/\\3/\\4.html#'
+            else
+              clean_path=$(echo "$file" | sed -E 's#\\.md$#.html#')
+              echo "https://rychlovlada.cz/$clean_path"
+            fi
+          done)
           echo "Prepared URLs for IndexNow:" "$URLS"
           echo "URL_LIST<<EOF" >> $GITHUB_ENV
           echo "$URLS" >> $GITHUB_ENV
