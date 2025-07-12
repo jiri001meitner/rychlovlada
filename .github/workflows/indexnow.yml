@@ -22,12 +22,18 @@ jobs:
           URLS=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} || true)
           echo "Raw changed files:" "$URLS"
           if [ -z "$URLS" ]; then
-            URLS=$(git ls-files)
-            echo "Using all files fallback:" "$URLS"
+            if [ -f "_site/sitemap.xml" ]; then
+              echo "Using sitemap.xml fallback"
+              URLS=$(xmllint --xpath '//*[local-name()="url"]/*[local-name()="loc"]/text()' _site/sitemap.xml | tr '\n' '\n')
+              echo "Loaded URLs from sitemap:" "$URLS"
+            else
+              URLS=$(git ls-files '_posts/*')
+              echo "Using all files fallback:" "$URLS"
+            fi
           fi
           FILTERED=$(echo "$URLS" | grep '^_posts/' | grep -E '\\.(md|html)$' || true)
           echo "Filtered post files:" "$FILTERED"
-          URLS=$(echo "$FILTERED" | sed 's/^/_site\//;s/\\.md$/.html/;s/\\.html$/.html/' | awk '{print "https://rychlovlada.cz/"$0}')
+          URLS=$(echo "$FILTERED" | sed -E 's#^_posts/([0-9]{4})-([0-9]{2})-([0-9]{2})-(.*)\\.md#\1/\2/\3/\4.html#;s#^_posts/([0-9]{4})-([0-9]{2})-([0-9]{2})-(.*)\\.html#\1/\2/\3/\4.html#' | awk '{print "https://rychlovlada.cz/"$0}')
           echo "Prepared URLs for IndexNow:" "$URLS"
           echo "URL_LIST<<EOF" >> $GITHUB_ENV
           echo "$URLS" >> $GITHUB_ENV
