@@ -30,9 +30,36 @@ verzovaná v repozitáři `linuxadm` a dostupná ze všech webů
 Příklad, proč to má smysl: „správa přístupů Google Business se nedělá na
 `business.google.com`, ten Google zrušil“ platí pro každý web se zápisem firmy.
 
+## Frontendové knihovny
+
+Web **nepoužívá `node_modules` za běhu.** Knihovny jsou na dvou místech:
+
+- **Vendorované v `assets/vendor/`** — Bootstrap SCSS a šablona Clean Blog.
+  Kompilují se do `assets/main.css` přes `_sass/styles.scss`.
+- **Z CDN (jsDelivr)** — Bootstrap JS a Font Awesome CSS, odkazované
+  z `_includes/scripts.html` a `_includes/head.html`, oba se **SRI hashem**.
+
+`package.json` tyhle balíčky uvádí jen jako **záznam verzí**, nic se z něj
+nesestavuje. Při aktualizaci proto nestačí `npm update` — je potřeba:
+
+1. `npm install` (stáhne novou verzi do `node_modules/`),
+2. zkopírovat do `assets/vendor/` (Bootstrap `scss/`, Clean Blog `src/scss/`
+   a `src/js/scripts.js`),
+3. v `assets/vendor/startbootstrap-clean-blog/scss/styles.scss` opravit import
+   Bootstrapu na relativní cestu `../../bootstrap/scss/bootstrap`,
+4. u CDN odkazů přepočítat SRI:
+   `openssl dgst -sha384 -binary <soubor> | openssl base64 -A`
+   a ověřit, že hash sedí s tím, co CDN reálně servíruje.
+
+Bootstrap 5 vyžaduje **Dart Sass** — zajišťuje ho `jekyll-sass-converter 3.x`
+(`sass-embedded`). Deprecation warningy o barevných funkcích při buildu jsou
+z vlastního SCSS Bootstrapu, nejsou to chyby.
+
 ## Práce se změnami
 
 - Po úpravách proveď **reálné ověření** výsledku, ne jen předpoklad. Když
   kontrola neprojde, zanalyzuj příčinu a neopakuj stejné kroky naslepo.
 - Nevracej částečná řešení a drž se zadání.
 - `_site/` je generovaný výstup — needituj ho ručně, změny patří do zdrojů.
+- Vizuální změny ověřuj proti předchozímu stavu (worktree s `main` + build
+  a screenshoty obou verzí), ne jen pohledem na novou verzi.
