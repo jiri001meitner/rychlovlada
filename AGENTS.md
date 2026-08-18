@@ -25,10 +25,22 @@ verzovaná v repozitáři `linuxadm` a dostupná ze všech webů
 - **Zapisuj:** při zjištění netriviálního faktu přidej krátký `.md` soubor
   a řádek do rejstříku. Popis piš tak, aby z něj šlo poznat, **kdy** je soubor
   relevantní, ne jen čeho se týká.
-- **Co tam nepatří:** věci vázané jen na tenhle projekt.
+- **Co tam nepatří:** věci vázané jen na tenhle projekt — ty patří do
+  `knowledge/` **v tomhle repozitáři** (rejstřík `knowledge/INDEX.md`).
 
 Příklad, proč to má smysl: „správa přístupů Google Business se nedělá na
 `business.google.com`, ten Google zrušil“ platí pro každý web se zápisem firmy.
+
+### Projektová báze `knowledge/`
+
+Poznatky vázané jen na rychlovlada. Je **v repozitáři**, ne v profilu agenta —
+pracuje tu víc agentů (`CLAUDE.md` i `GEMINI.md` jsou symlinky na tenhle soubor)
+a co si jeden zjistí, musí být dostupné ostatním i po klonu.
+
+- **Neukládej poznatky do svého soukromého úložiště** (`~/.claude/`, `~/.gemini/`
+  apod.). Tam je ostatní agenti neuvidí a s repozitářem se nepřenesou.
+- Při netriviálním zjištění přidej krátký `.md` a řádek do `knowledge/INDEX.md`.
+  Popis piš tak, aby z něj šlo poznat, **kdy** je soubor relevantní.
 
 ## Frontendové knihovny
 
@@ -61,5 +73,10 @@ z vlastního SCSS Bootstrapu, nejsou to chyby.
   kontrola neprojde, zanalyzuj příčinu a neopakuj stejné kroky naslepo.
 - Nevracej částečná řešení a drž se zadání.
 - `_site/` je generovaný výstup — needituj ho ručně, změny patří do zdrojů.
+- **Co je deprecated nebo po EOL, to nepoužíváme.** Varování se neumlčuje
+  (`quiet_deps`, `silence_deprecations`) — deprecation je oznámený termín
+  rozbití, ne kosmetika. Nepoužívanou závislost raději smaž, než záplatuj.
+  Když varování pochází z cizí knihovny a spravit nejde, řekni to nahlas
+  i s čísly (kolik je čích) a zapiš do `knowledge/`.
 - Vizuální změny ověřuj proti předchozímu stavu (worktree s `main` + build
   a screenshoty obou verzí), ne jen pohledem na novou verzi.
