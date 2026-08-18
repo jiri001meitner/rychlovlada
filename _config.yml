@@ -59,3 +59,29 @@ fb_app_id:          '1268828040504833'
 json_data:
   - author_name: "Jiří Meitner"
     web: "https://ITisLove.cz"
+
+# Co se nemá dostat do vygenerovaného webu.
+# Pozor: tenhle klíč nahrazuje výchozí seznam Jekyllu, proto jsou tu i výchozí
+# položky (vendor/, Gemfile, node_modules) — bez nich by se do _site zkopírovaly.
+exclude:
+  # výchozí seznam Jekyllu
+  - .sass-cache/
+  - .jekyll-cache/
+  - gemfiles/
+  - Gemfile
+  - Gemfile.lock
+  - node_modules/
+  - vendor/
+  # interní dokumentace pro agenty a vývojáře
+  - knowledge/
+  - AGENTS.md
+  - CLAUDE.md
+  - GEMINI.md
+  - COPILOT.md
+  - README.md
+  - LICENSE
+  # sestavovací metadata, na webu nemají co dělat
+  - package.json
+  - package-lock.json
+  - jekyll-theme-clean-blog.gemspec
+  - bin/
