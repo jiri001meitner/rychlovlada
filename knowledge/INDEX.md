@@ -6,6 +6,7 @@ odvoditelné z kódu** a týkají se jen tohoto webu. Prohledávej přes
 
 ## Rejstřík znalostí (INDEX)
 
+- [provozni-udaje-a-strukturovana-data.md](provozni-udaje-a-strukturovana-data.md) — Rozdělení zdrojů pravdy pro provozní údaje (otevírací doba, dovolená, adresa, IČO, telefon, ceník) a jejich vazba na strukturovaná data Schema.org a mikroformáty h-card. Čti, než začneš měnit kontaktní nebo provozní informace.
 - [bootstrap5-clean-blog6-migrace.md](bootstrap5-clean-blog6-migrace.md) — Dvě tiché regrese při povýšení šablony (překryv hlavičky zakryl nadpisy, patička ztratila vycentrování), proč je odhalí jen porovnání screenshotů a proč se třídy auditují nad `_site/`, ne nad šablonami.
 - [jekyll-gemy-vendor-bundle.md](jekyll-gemy-vendor-bundle.md) — `Gemfile.lock` není v gitu, takže o verzích rozhoduje CI; `bundle update` staré gemy nemaže; novější Dart Sass mění zápis `rgb()`; jak ověřit build jen z obsahu gitu.
 - [jekyll-exclude-publikuje-dokumentaci.md](jekyll-exclude-publikuje-dokumentaci.md) — Bez `exclude` v `_config.yml` se AGENTS.md, README, `package.json` i celá `knowledge/` publikují na web; a `exclude` **nahrazuje** výchozí seznam Jekyllu, takže bez zopakování `vendor/` se do `_site` zkopíruje celý `vendor/bundle`.

@@ -74,7 +74,9 @@ exclude:
   - vendor/
   # interní dokumentace pro agenty a vývojáře
   - knowledge/
+  - skills/
   - AGENTS.md
+  - ARCHITECTURE.md
   - CLAUDE.md
   - GEMINI.md
   - COPILOT.md
