@@ -87,3 +87,5 @@ exclude:
   - package-lock.json
   - jekyll-theme-clean-blog.gemspec
   - bin/
+  # lokální API klíče a tajnosti
+  - seznam_api_key

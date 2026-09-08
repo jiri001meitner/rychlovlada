@@ -1,0 +1,77 @@
+name: Seznam Webmaster reindex on publish
+
+on:
+  workflow_run:
+    workflows: ["Deploy Jekyll to GitHub Pages"]
+    types:
+      - completed
+
+jobs:
+  seznam-reindex:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Extract changed URLs
+        id: extract_changed_urls
+        run: |
+          echo "Sběr změněných URL..."
+          URLS=$(git diff --name-only HEAD^ HEAD | grep -E '\.(md|html)$' || true)
+          echo "Změněné soubory: $URLS"
+          FINAL_URLS=""
+          if [ -n "$URLS" ]; then
+            while IFS= read -r file; do
+              [ -z "$file" ] && continue
+              if [[ "$file" == _posts/* ]]; then
+                url=$(echo "$file" | sed -E 's#^_posts/([0-9]{4})-([0-9]{2})-([0-9]{2})-(.*)\.(md|html)#https://rychlovlada.cz/\1/\2/\3/\4.html#')
+                FINAL_URLS="$FINAL_URLS$url\n"
+              else
+                clean_path=$(echo "$file" | sed -E 's#\.md$#.html#')
+                url="https://rychlovlada.cz/$clean_path"
+                FINAL_URLS="$FINAL_URLS$url\n"
+              fi
+            done <<< "$URLS"
+          fi
+          echo -e "Připravené URL pro Seznam:\n$FINAL_URLS"
+          echo "URL_LIST<<EOF" >> $GITHUB_ENV
+          echo -e "$FINAL_URLS" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Extract all URLs from sitemap if no changes detected
+        if: env.URL_LIST == ''
+        run: |
+          echo "Žádné změněné soubory nebyly detekovány, použijeme sitemap.xml."
+          FINAL_URLS=$(curl -s https://rychlovlada.cz/sitemap.xml | grep -oP '(?<=<loc>)[^<]+' | grep '^https://rychlovlada.cz' || true)
+          echo -e "URL ze sitemapy:\n$FINAL_URLS"
+          echo "URL_LIST<<EOF" >> $GITHUB_ENV
+          echo -e "$FINAL_URLS" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Reindex on Seznam Webmaster API
+        if: env.URL_LIST != ''
+        env:
+          SEZNAM_API_KEY: ${{ secrets.SEZNAM_API_KEY }}
+        run: |
+          if [ -z "$SEZNAM_API_KEY" ]; then
+            echo "::warning::Secret SEZNAM_API_KEY není v GitHub Secrets nastaven. Krok přeskočen."
+            echo "Přidejte jej v: GitHub Repo -> Settings -> Secrets and variables -> Actions -> SEZNAM_API_KEY."
+            exit 0
+          fi
+          echo "Odesílám žádosti o reindexaci na Seznam Webmaster API..."
+          while IFS= read -r url; do
+            [ -z "$url" ] && continue
+            echo "Odesílám reindex pro: $url"
+            ENCODED_URL=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$url")
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://reporter.seznam.cz/wm-api/web/document/reindex?key=${SEZNAM_API_KEY}&url=${ENCODED_URL}")
+            echo "Seznam API odpověď: HTTP $HTTP_CODE pro $url"
+            if [ "$HTTP_CODE" -ge 400 ]; then
+              echo "::warning::Seznam vrátil chybu HTTP $HTTP_CODE pro $url"
+            fi
+            sleep 1
+          done <<< "$URL_LIST"
