@@ -67,6 +67,17 @@ Zde se evidují provozní a vývojářské poznatky vázané na tento web (rejst
 Poznatky platné obecně (Google Firemní profil, SEO pravidla, správa vyhledávačů) patří do sdílené báze `~/weby/knowledge/` (rejstřík `~/weby/knowledge/INDEX.md`).
 - Před zahájením rešerše hledej: `rg <téma> ~/weby/knowledge/`.
 
+### Nápady `~/weby/ideas/`
+
+Nápady na projekty a rozšíření, které ještě nejsou zralé, jsou v **`~/weby/ideas/`**
+(symlink na `~/linuxadm/ideas/`, pravidla v kapitole 12 tamního `AGENTS.md`).
+
+- **Před prací hledej:** `rg <téma> ~/weby/ideas/`. Když se nápad hodí k zadání
+  nebo má nově splněnou sekci „Na co čeká“, upozorni na něj uživatele. Sám ho
+  nerealizuj.
+- **Nápad mimo zadání** navrhni zapsat do `~/weby/ideas/` podle šablony
+  v `~/weby/ideas/INDEX.md`.
+
 ---
 
 ## 6. Frontendový stack a vendorované knihovny
