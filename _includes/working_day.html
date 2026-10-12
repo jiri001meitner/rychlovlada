@@ -1,6 +1,9 @@
 <div>
 <div itemscope itemtype="https://schema.org/Store">
 <meta itemprop="name" content="{{ site.title }}">
+<link itemprop="hasMap" href="{{ site.google_maps }}">
+<link itemprop="sameAs" href="{{ site.google_maps }}">
+{% if site.facebook_username %}<link itemprop="sameAs" href="https://www.facebook.com/{{ site.facebook_username }}">{% endif %}
 <img class="img-fluid" src="/assets/boty.svg" width="500" height="335" alt="Boty {{ site.title }}">
 <meta itemprop="image" content="/assets/logo.svg">
  <meta itemprop="priceRange" content="{{ site.priceRange }}">
@@ -43,24 +46,7 @@
 {% include dovolena.html %}
 
 
-<!-- Služby a jejich hodnocení -->
-<div itemprop="aggregateRating" itemscope itemtype="https://schema.org/AggregateRating">
-    <meta itemprop="ratingValue" content="4.9">
-    <meta itemprop="reviewCount" content="295">
-    <meta itemprop="bestRating" content="5">
-    <meta itemprop="worstRating" content="3">
-    <div itemprop="itemReviewed" itemscope itemtype="https://schema.org/LocalBusiness">
-        <meta itemprop="name" content="{{ site.title }}">
-        <meta itemprop="image" content="/assets/logo.svg">
-        <meta itemprop="priceRange" content="{{ site.priceRange }}">
-        <meta itemprop="telephone" content="{{ site.telephone_long }}">
-        <div itemprop="address" itemscope itemtype="https://schema.org/PostalAddress">
-            <meta itemprop="streetAddress" content="{{ site.streetAddress }}">
-            <meta itemprop="postalCode" content="{{ site.postalCode }}">
-            <meta itemprop="addressLocality" content="{{ site.addressLocality }}">
-        </div>
-    </div>
-</div>
+
 <!--
 <script>
 // Získáme aktuální datum a den v týdnu

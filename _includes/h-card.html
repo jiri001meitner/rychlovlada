@@ -1,8 +1,11 @@
 <section>
 <h2 class="section-heading">Kde nás najdete:</h2>
 <p>Vestibul metra C Opatov</p>
-<div class="h-card" itemscope itemtype="https://schema.org/LocalBusiness">
- <a class="u-url p-name p-org" href="https://rychlovlada.cz" itemprop="url"><strong itemprop="name">RychloVláďa.cz</strong></a><br>
+ <div class="h-card" itemscope itemtype="https://schema.org/LocalBusiness">
+  <a class="u-url p-name p-org" href="https://rychlovlada.cz" itemprop="url"><strong itemprop="name">RychloVláďa.cz</strong></a><br>
+  <link itemprop="hasMap" href="{{ site.google_maps }}">
+  <link itemprop="sameAs" href="{{ site.google_maps }}">
+  {% if site.facebook_username %}<link itemprop="sameAs" href="https://www.facebook.com/{{ site.facebook_username }}">{% endif %}
 <!-- <p>Kontaktní osoba: <span class="p-nickname" itemprop="employee">{{ site.vedouci_nickname }}</span> - <span class="p-given-name" itemprop="givenName">{{ site.vedouci_1_name }}</span> <span class="p-family-name" itemprop="familyName">{{ site.vedouci_2_name }}</span>, IČ: {{ site.ICO }}</p>
 -->
 <p>Kontaktní osoba: 
