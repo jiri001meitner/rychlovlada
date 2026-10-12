@@ -38,6 +38,10 @@ sitemap: true
 - Preferuj formát WebP pro rychlé načítání.
 - V těle článku uveď obrázek v tagu `<figure>` s popiskem `<figcaption>` a smysluplným `alt` textem.
 
+### Pravidla pro emotikon `📣` v titulku:
+- Emotikon `📣` v titulku (`title: "📣 Upozornění zákazníkům..."`) se používá **výhradně u nejnovější (aktuální) zprávy**.
+- Při vydání nové zprávy s `📣` je nutné z předchozího článku `📣` z titulku odstranit, aby v seznamu aktualit nebyl symbol duplicitní.
+
 ---
 
 ## 3. Tělo příspěvku a povinné includy
