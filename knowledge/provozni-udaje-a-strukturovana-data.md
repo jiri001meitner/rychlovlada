@@ -43,7 +43,7 @@ V `_includes/dovolena.html` se využívá typ `specialOpeningHoursSpecification`
 ### Vizitka podniku (`LocalBusiness` a `h-card`):
 V `_includes/h-card.html` je kombinace sémantických mikroformátů `h-card` (třídy `p-name`, `p-adr`, `p-tel`) a Schema.org `itemscope itemtype="https://schema.org/LocalBusiness"`.
 E-mail není uložen v čistém textu v `_config.yml`, ale skládá se JavaScriptem při kliknutí v `_includes/h-card.html` (`marcela.olb[zavinac]seznam.cz`), aby byl chráněn před web scrapers.
-`LocalBusiness` obsahuje vazby `hasMap` a `sameAs` odkazující na ověřený Google Firemní profil a Facebook.
+`LocalBusiness` obsahuje vazby `hasMap` a `sameAs` odkazující na ověřený Google Firemní profil, Mapy.cz, profil na Firmy.cz a Facebook.
 
 ### Recenze a hodnocení podniku:
 Na webu se nepoužívá statický blok `aggregateRating` v HTML. Google od roku 2019 zakazuje *self-serving reviews* pro `LocalBusiness` a hodnocení si vyhledávač páruje přímo z propojeného profilu na Google Mapách (kde je skutečné hodnocení zákazníků).

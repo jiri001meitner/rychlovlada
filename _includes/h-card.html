@@ -4,7 +4,10 @@
  <div class="h-card" itemscope itemtype="https://schema.org/LocalBusiness">
   <a class="u-url p-name p-org" href="https://rychlovlada.cz" itemprop="url"><strong itemprop="name">RychloVláďa.cz</strong></a><br>
   <link itemprop="hasMap" href="{{ site.google_maps }}">
+  <link itemprop="hasMap" href="{{ site.mapy_cz }}">
   <link itemprop="sameAs" href="{{ site.google_maps }}">
+  <link itemprop="sameAs" href="{{ site.firmy_cz }}">
+  <link itemprop="sameAs" href="{{ site.mapy_cz }}">
   {% if site.facebook_username %}<link itemprop="sameAs" href="https://www.facebook.com/{{ site.facebook_username }}">{% endif %}
 <!-- <p>Kontaktní osoba: <span class="p-nickname" itemprop="employee">{{ site.vedouci_nickname }}</span> - <span class="p-given-name" itemprop="givenName">{{ site.vedouci_1_name }}</span> <span class="p-family-name" itemprop="familyName">{{ site.vedouci_2_name }}</span>, IČ: {{ site.ICO }}</p>
 -->
@@ -38,7 +41,8 @@
     <span class="p-latitude" itemprop="latitude">{{ site.latitude }}</span>,
     <span class="p-longitude" itemprop="longitude">{{ site.longtitude }}</span>
     <div><a class='btn' rel='nofollow' href="{{ site.google_maps }}" title='Zobrazit na Google Maps'>Zobrazit na Google Maps</a></div>
-    <div><a class='btn' rel='nofollow' href="{{ site.mapy_cz }}" title='Zobrazit na mapy.cz'>Zobrazit na Mapy.cz</a></div>
+    <div><a class='btn' rel='nofollow' href="{{ site.mapy_cz }}" title='Zobrazit na Mapy.cz'>Zobrazit na Mapy.cz</a></div>
+    <div><a class='btn' rel='nofollow' href="{{ site.firmy_cz }}" title='Zobrazit na Firmy.cz'>Zobrazit na Firmy.cz</a></div>
   </div>
   <br>
   <div>Naše služby:</div>
