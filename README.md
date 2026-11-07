@@ -71,3 +71,11 @@ Web nepoužívá `node_modules` za běhu:
 ## 🔒 Bezpečnost a exclude
 
 V souboru `_config.yml` je explicitně definovaný seznam `exclude:`. Ten brání tomu, aby interní dokumentace (`AGENTS.md`, `ARCHITECTURE.md`, `knowledge/`, `skills/`), sestavovací metadata a konfigurační soubory unikly do vygenerovaného `_site/`. Při zakládání nových interních složek je vždy nutné zkontrolovat nastavení `exclude`.
+
+## Podmíněné sestavení v CI
+
+GitHub Pages workflow při pushi přeskočí změny omezené na interní
+dokumentaci vyloučenou v `_config.yml`. Markdown stránek a příspěvků
+v `_posts/`, konfigurace, závislosti i šablony sestavení dál spouštějí.
+Smíšená změna dokumentace a webu tedy build nepřeskočí. Ruční spuštění
+`workflow_dispatch` umožňuje vynutit sestavení i bez změny vstupů.

@@ -92,7 +92,7 @@ Web **nepoužívá `node_modules` za běhu**:
 
 ## 7. Závazná pravidla pro provádění změn
 
-1. **Reálné ověření po každé změně:**
+1. **Reálné ověření změn webu a vstupů sestavení:**
    - Spusť `bundle exec jekyll build` a ověř, že web projde sestavením bez chyb.
    - Neodhaduj výsledek, reálně ho zkontroluj ve vygenerovaném `_site/`.
 2. **Generovaný výstup se neupravuje ručně:**
@@ -107,3 +107,19 @@ Web **nepoužívá `node_modules` za běhu**:
    - Varování se neumlčují (`quiet_deps`, `silence_deprecations`). Deprecation je oznámený termín rozbití.
 5. **Vizuální změny ověřuj proti předchozímu stavu:**
    - U layoutových a stylových zásahů porovnej stav před a po (např. přes git worktree s `main` nebo screenshoty).
+
+## Ověřování podle dopadu změny
+
+- Rozsah kontrol určuj podle skutečného dopadu a vstupů sestavení,
+  nikoli jen podle přípony souboru.
+- Změna pouze projektové dokumentace, která se nepoužívá při běhu ani
+  nevstupuje do publikovaného výstupu, vyžaduje kontrolu obsahu, formátu,
+  odkazů a diffu. Kvůli ní nespouštěj build aplikace nebo image,
+  regeneraci PDF či assetů ani integrační a E2E testy aplikace.
+- Při změně kódu, závislostí, konfigurace, šablon, publikovaného obsahu
+  nebo souborů používaných při běhu proveď odpovídající testy a sestavení
+  podle pravidel projektu. Markdown používaný jako webový obsah nebo
+  produkční prompt či instrukce není automaticky pouhá dokumentace.
+- Již ověřený artefakt lze převzít jen tehdy, pokud existující vydávací
+  postup prokáže shodné vstupy sestavení a dohledatelný původ artefaktu.
+  Toto pravidlo samo nezavádí nový release systém.

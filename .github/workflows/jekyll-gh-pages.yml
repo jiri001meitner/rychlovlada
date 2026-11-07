@@ -3,6 +3,19 @@ name: Deploy Jekyll to GitHub Pages
 on:
   push:
     branches: ["main"]
+    # Interní dokumentace je vyloučená i z webu v _config.yml.
+    # Markdown ve stránkách a _posts/ zůstává vstupem sestavení.
+    paths-ignore:
+      - 'README.md'
+      - 'AGENTS.md'
+      - 'ARCHITECTURE.md'
+      - 'SECURITY.md'
+      - 'CLAUDE.md'
+      - 'GEMINI.md'
+      - 'COPILOT.md'
+      - 'LICENSE'
+      - 'knowledge/**'
+      - 'skills/**'
   workflow_dispatch:
 
 permissions:
