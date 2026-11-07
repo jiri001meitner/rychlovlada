@@ -78,6 +78,7 @@ exclude:
   - skills/
   - AGENTS.md
   - ARCHITECTURE.md
+  - SECURITY.md
   - CLAUDE.md
   - GEMINI.md
   - COPILOT.md
