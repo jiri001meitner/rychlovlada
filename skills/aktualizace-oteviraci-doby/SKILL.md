@@ -1,6 +1,16 @@
 ---
 name: aktualizace-oteviraci-doby
 description: Postup pro změnu pravidelné otevírací doby na webu RychloVláďa, včetně úpravy HTML textu, Schema.org microdat a publikace oznámení.
+metadata:
+  guard:
+    paths:
+    - _includes/working_day.html
+    verify:
+    - paths:
+      - _includes/working_day.html
+      commands:
+      - \bjekyll\s+build\b
+      message: spusť bundle exec jekyll build
 ---
 
 # Aktualizace otevírací doby

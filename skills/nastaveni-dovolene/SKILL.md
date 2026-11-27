@@ -1,6 +1,16 @@
 ---
 name: nastaveni-dovolene
 description: Postup nastavení celozávodní dovolené a mimořádných provozních odstávek v _includes/dovolena.html, včetně Schema.org specifikace a publikace příspěvku.
+metadata:
+  guard:
+    paths:
+    - _includes/dovolena.html
+    verify:
+    - paths:
+      - _includes/dovolena.html
+      commands:
+      - \bjekyll\s+build\b
+      message: spusť bundle exec jekyll build
 ---
 
 # Nastavení dovolené a provozních odstávek

@@ -1,6 +1,16 @@
 ---
 name: pridani-aktuality
 description: Postup tvorby nového příspěvku (článku) do _posts/ na webu RychloVláďa, včetně frontmatteru, zařazení obrázku a kontroly feedu.
+metadata:
+  guard:
+    paths:
+    - _posts/**
+    verify:
+    - paths:
+      - _posts/**
+      commands:
+      - \bjekyll\s+build\b
+      message: spusť bundle exec jekyll build a zkontroluj feed
 ---
 
 # Přidání aktuality (článku)

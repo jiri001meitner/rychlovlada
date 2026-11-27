@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Kontroly před commitem.
+# Zapnutí v klonu: git config core.hooksPath .githooks
+set -Eeuo pipefail
+
+# agent-guard: testy strážce skillů (kanonická verze v linuxadm/scripts/agent_guard).
+# Testuje obsah indexu, ne pracovní strom.
+if git diff --cached --name-only | grep -qE '^(scripts/agent_guard/|skills/|\.claude/skills|\.agents/skills|\.claude/settings\.json)'; then
+  guard_snap=$(mktemp -d)
+  trap 'rm -rf -- "$guard_snap"' EXIT
+  git checkout-index -a --prefix="$guard_snap/"
+  echo "pre-commit: testy strážce skillů" >&2
+  if ! (cd "$guard_snap/scripts/agent_guard" && python3 -m pytest -q -p no:cacheprovider tests >&2); then
+    echo "pre-commit: testy strážce skillů selhaly, commit zastaven" >&2
+    exit 1
+  fi
+fi

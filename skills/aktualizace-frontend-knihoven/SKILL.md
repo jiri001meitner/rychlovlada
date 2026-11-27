@@ -1,6 +1,22 @@
 ---
 name: aktualizace-frontend-knihoven
 description: Postup aktualizace vendorovaných knihoven (Bootstrap, Clean Blog) a CDN odkazů (JS, Font Awesome) včetně výpočtu SRI hashe.
+metadata:
+  guard:
+    paths:
+    - assets/vendor/**
+    - package.json
+    - package-lock.json
+    - _includes/scripts.html
+    - _includes/head.html
+    verify:
+    - paths:
+      - assets/vendor/**
+      - _includes/scripts.html
+      - _includes/head.html
+      commands:
+      - \bjekyll\s+build\b
+      message: spusť bundle exec jekyll build
 ---
 
 # Aktualizace frontendových knihoven
