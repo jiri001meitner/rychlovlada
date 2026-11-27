@@ -39,6 +39,8 @@ metadata:
       - "~/docker/icinga/**"                       # mimo repozitář
     commands:                    # regexy na příkaz v shellu
       - '\bansible-playbook\b'
+    requires:                    # soubory, které se musí přečíst spolu se skillem
+      - "~/weby/knowledge/standardy/zakladni-pravidla.md"
     verify:                      # po úpravě souborů z paths musí proběhnout
       - paths: ["roles/*/templates/**/Caddyfile*.j2"]
         commands: ['check_caddy_format\.py']   # úspěšný příkaz (stačí jeden)
@@ -53,6 +55,13 @@ metadata:
       wrapper: 'skills/izolovane-testy/scripts/izolovane\.sh'   # musí být v příkazu
       message: "proč a jak"
 ```
+
+`requires` doplní spouštěče skillu o povinné soubory: akce pod skillem
+projde, až když agent od posledního zhuštění kontextu načetl skill a přečetl
+i každý uvedený soubor (nástrojem Read nebo `cat`/`sed`/`head`, i přes
+symlink). Slouží pro závazná pravidla, která leží mimo skill, např. sdílené
+standardy webů v `knowledge/weby/standardy/`. Neexistující soubor je chyba
+konfigurace.
 
 `isolate` zamítne příkaz, který odpovídá `commands` a neobsahuje `wrapper`,
 i když agent skill načetl. Slouží k vynucení limitů u příkazů, které mohou
@@ -126,11 +135,21 @@ skillů nebo `.claude/settings.json`.
 
 ## Strážce v dalších repozitářích
 
-Kanonická verze je v `linuxadm/scripts/agent_guard`. Jiný repozitář
-dostane shodnou kopii `guard.py`, `README.md` a souborů označených
-„shodný všude“, hooky v `.claude/settings.json` (stejné jako v linuxadm)
-a krok v `.githooks/pre-commit`. Změnu strážce dělej v linuxadm a kopie
-srovnej; kopie neupravuj samostatně.
+Kanonická verze je v `linuxadm/scripts/agent_guard`, stejně jako sdílené
+skilly `web-uprava`, `web-zalozeni` a `web-overeni` v `linuxadm/skills/`.
+Do ostatních projektů je kopíruje `rozvoz.py` (seznam cílů je v něm):
+
+```bash
+scripts/agent_guard/rozvoz.py --check   # jen rozdíly, kód 1 při rozdílu
+scripts/agent_guard/rozvoz.py           # srovná všechny cíle
+```
+
+Skript zkopíruje strážce a soubory označené „shodný všude“, sdílené skilly
+a jejich řádky v `skills/INDEX.md`, zajistí symlinky skillů, hooky
+v `.claude/settings.json` (cizí hooky zachová) a krok v `.githooks/pre-commit`.
+Změnu strážce nebo sdíleného skillu dělej v linuxadm a pak spusť rozvoz;
+kopie neupravuj samostatně. Spouštěče projektových skillů (`metadata.guard`)
+rozvoz neřeší.
 
 Podprojekt s vlastním `skills/` uvnitř repozitáře (např. `~/bin/typst_to_pdf`)
 kopii nepotřebuje: jeho `.claude/settings.json` volá strážce nadřazeného

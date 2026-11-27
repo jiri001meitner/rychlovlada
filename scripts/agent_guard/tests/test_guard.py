@@ -441,6 +441,79 @@ def test_compaction_resets_native_skill(project: Path) -> None:
     assert denied(session.edit("conf/a.conf", post=False))
 
 
+SKILL_REQUIRES = """---
+name: req-skill
+description: Skill s povinnými soubory.
+metadata:
+  guard:
+    paths: ["web/*.html"]
+    requires: ["kb/pravidla.md", "~/kb-home.md"]
+---
+
+# Req skill
+"""
+
+
+@pytest.fixture(name="req_project")
+def fixture_req_project(project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Projekt se skillem, který vyžaduje přečtení dalších souborů."""
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    (tmp_path / "home").mkdir()
+    (tmp_path / "home" / "kb-home.md").write_text("x", encoding="utf-8")
+    (project / "kb").mkdir()
+    (project / "kb" / "pravidla.md").write_text("x", encoding="utf-8")
+    (project / "web").mkdir()
+    (project / "web" / "i.html").write_text("x", encoding="utf-8")
+    (project / "skills" / "req-skill").mkdir()
+    (project / "skills" / "req-skill" / "SKILL.md").write_text(SKILL_REQUIRES, encoding="utf-8")
+    return project
+
+
+def test_requires_needs_skill_and_files(req_project: Path, tmp_path: Path) -> None:
+    """Akce projde až po načtení skillu i všech povinných souborů."""
+    session = Session(req_project)
+    skill_tool(session, "req-skill")
+    out = session.edit("web/i.html", post=False)
+    assert denied(out)
+    reason = out["hookSpecificOutput"]["permissionDecisionReason"]
+    assert "kb/pravidla.md" in reason and "~/kb-home.md" in reason
+    assert "skills/req-skill/SKILL.md" not in reason
+    session.read("kb/pravidla.md")
+    assert denied(session.edit("web/i.html", post=False))
+    session.send("PostToolUse", tool_name="Read",
+                 tool_input={"file_path": str(tmp_path / "home" / "kb-home.md")})
+    assert not denied(session.edit("web/i.html", post=False))
+
+
+def test_requires_via_symlink_and_cat(req_project: Path) -> None:
+    """Povinný soubor se uzná i přes symlink a přes `cat` v shellu."""
+    (req_project / "odkaz").symlink_to("kb")
+    session = Session(req_project)
+    session.read("skills/req-skill/SKILL.md")
+    session.read("odkaz/pravidla.md")
+    session.bash("cat ~/kb-home.md >/dev/null")
+    assert not denied(session.edit("web/i.html", post=False))
+
+
+def test_requires_reset_by_compaction(req_project: Path, tmp_path: Path) -> None:
+    """Po zhuštění kontextu je potřeba povinné soubory přečíst znovu."""
+    session = Session(req_project)
+    session.read("skills/req-skill/SKILL.md")
+    session.read("kb/pravidla.md")
+    session.send("PostToolUse", tool_name="Read",
+                 tool_input={"file_path": str(tmp_path / "home" / "kb-home.md")})
+    session.send("SessionStart", source="compact")
+    session.read("skills/req-skill/SKILL.md")
+    assert denied(session.edit("web/i.html", post=False))
+
+
+def test_requires_missing_file_is_config_error(req_project: Path) -> None:
+    """Neexistující povinný soubor je chyba konfigurace (strážce akci propustí a ohlásí)."""
+    (req_project / "kb" / "pravidla.md").unlink()
+    out = Session(req_project).edit("web/i.html", post=False)
+    assert "requires kb/pravidla.md neexistuje" in out["systemMessage"]
+
+
 def test_top_level_guard_is_rejected() -> None:
     """Blok guard na nejvyšší úrovni frontmatteru je chyba (patří pod metadata)."""
     text = "---\nname: x\ndescription: x\nguard: {}\n---\n"

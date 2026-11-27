@@ -108,6 +108,36 @@ Web **nepoužívá `node_modules` za běhu**:
 5. **Vizuální změny ověřuj proti předchozímu stavu:**
    - U layoutových a stylových zásahů porovnej stav před a po (např. přes git worktree s `main` nebo screenshoty).
 
+## Weby: standardy a fakta projektu
+
+Pro web platí závazné standardy `~/weby/knowledge/standardy/` (rozcestník
+`INDEX.md`, vždy `zakladni-pravidla.md`); změny webu se dělají podle skillu
+`web-uprava`, nové rozhraní podle `web-zalozeni`, úplné ověření před vydáním
+podle `web-overeni`. Přísnější pravidla tohoto souboru mají přednost.
+Skilly `web-*` a strážce `scripts/agent_guard/` jsou kopie z linuxadm
+(`linuxadm/scripts/agent_guard/rozvoz.py`) a samostatně se neupravují.
+
+### Fakta projektu
+
+Podle `~/weby/knowledge/standardy/fakta-projektu-sablona.md`, převzato
+2026-11-27; neověřené položky jsou `UNKNOWN`.
+
+- Typ: obsahový web
+- Kanonický origin: `https://rychlovlada.cz` (`_config.yml`)
+- Politika koncového lomítka a zda ji vynucuje Caddy: UNKNOWN
+- Jazyk(y) a schéma URL podle jazyka: čeština (`lang="cs"`)
+- Umístění dat SSOT: `_data/` (UNKNOWN, zda úplné)
+- Příkazy build / dev / test / lint: Jekyll; přesné příkazy UNKNOWN
+- Správa infrastruktury: mimo repozitář (Caddy a hlavičky; umístění konfigurace UNKNOWN)
+- Hlavička CSP: UNKNOWN
+- Přesměrování spravuje Caddy: UNKNOWN
+- Schválené služby třetích stran: UNKNOWN
+- Analytika: UNKNOWN
+- Značky zástupného textu pro detekci při buildu: UNKNOWN
+- Platné právo nad rámec výchozího: UNKNOWN
+
+---
+
 ## Ověřování podle dopadu změny
 
 - Rozsah kontrol určuj podle skutečného dopadu a vstupů sestavení,

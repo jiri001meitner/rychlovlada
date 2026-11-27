@@ -102,16 +102,54 @@ class IsolateRule:
 
 
 @dataclass(frozen=True)
-class Skill:
-    """Skill a jeho spouštěče z frontmatteru."""
+class GuardRules:
+    """Pravidla z bloku `metadata.guard` jednoho skillu."""
 
-    name: str
-    description: str
     paths: tuple[PathRule, ...] = ()
     commands: tuple[re.Pattern[str], ...] = ()
     verify: tuple[VerifyRule, ...] = ()
     foreign: ForeignRules | None = None
     isolate: IsolateRule | None = None
+    requires: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class Skill:
+    """Skill a jeho spouštěče z frontmatteru."""
+
+    name: str
+    description: str
+    rules: GuardRules = GuardRules()
+
+    @property
+    def paths(self) -> tuple[PathRule, ...]:
+        """Globy souborů, jejichž úprava vyžaduje skill."""
+        return self.rules.paths
+
+    @property
+    def commands(self) -> tuple[re.Pattern[str], ...]:
+        """Regexy příkazů, které vyžadují skill."""
+        return self.rules.commands
+
+    @property
+    def verify(self) -> tuple[VerifyRule, ...]:
+        """Ověření předepsaná po úpravě souborů."""
+        return self.rules.verify
+
+    @property
+    def foreign(self) -> ForeignRules | None:
+        """Pravidla pro cizí repozitáře."""
+        return self.rules.foreign
+
+    @property
+    def isolate(self) -> IsolateRule | None:
+        """Příkazy, které smí běžet jen přes obal."""
+        return self.rules.isolate
+
+    @property
+    def requires(self) -> tuple[str, ...]:
+        """Soubory, které je nutné přečíst spolu se skillem."""
+        return self.rules.requires
 
     @property
     def rel_path(self) -> str:
@@ -190,7 +228,8 @@ def skill_from_frontmatter(name: str, data: dict[str, Any], where: str) -> Skill
     guard = data["guard"] or {}
     if not isinstance(guard, dict):
         raise GuardConfigError(f"{where}: guard není mapa")
-    unknown = set(guard) - {"paths", "commands", "verify", "foreign_repos", "isolate"}
+    unknown = set(guard) - {"paths", "commands", "verify", "foreign_repos", "isolate",
+                            "requires"}
     if unknown:
         raise GuardConfigError(f"{where}: neznámé klíče guard: {sorted(unknown)}")
     verify = []
@@ -225,11 +264,14 @@ def skill_from_frontmatter(name: str, data: dict[str, Any], where: str) -> Skill
     return Skill(
         name=name,
         description=str(data.get("description", "")),
-        paths=_paths(guard.get("paths"), where),
-        commands=_regexes(guard.get("commands")),
-        verify=tuple(verify),
-        foreign=foreign,
-        isolate=isolate,
+        rules=GuardRules(
+            paths=_paths(guard.get("paths"), where),
+            commands=_regexes(guard.get("commands")),
+            verify=tuple(verify),
+            foreign=foreign,
+            isolate=isolate,
+            requires=tuple(str(r) for r in guard.get("requires") or []),
+        ),
     )
 
 
@@ -242,7 +284,11 @@ def load_skills(root: Path) -> list[Skill]:
         name = skill_md.parent.name
         if data.get("name") != name:
             raise GuardConfigError(f"{where}: name se neshoduje s adresářem")
-        skills.append(skill_from_frontmatter(name, data, where))
+        skill = skill_from_frontmatter(name, data, where)
+        for raw in skill.requires:
+            if not Path(required_path(raw, root)).is_file():
+                raise GuardConfigError(f"{where}: requires {raw} neexistuje")
+        skills.append(skill)
     return skills
 
 
@@ -261,6 +307,13 @@ def rel_to_root(path: Path, root: Path) -> str | None:
         return path.relative_to(root).as_posix()
     except ValueError:
         return None
+
+
+def required_path(raw: str, root: Path) -> str:
+    """Skutečná cesta souboru z `requires` (relativně ke kořeni, `~/` nebo absolutní)."""
+    expanded = os.path.expanduser(raw)
+    base = Path(expanded) if os.path.isabs(expanded) else root / expanded
+    return os.path.realpath(base)
 
 
 def real_rel(path: Path, root: Path) -> str | None:
@@ -372,20 +425,34 @@ class Guard:
     def _reads(self) -> dict[str, int]:
         return self.state["reads"].setdefault(self.agent, {})
 
+    def _file_reads(self) -> dict[str, int]:
+        return self.state.setdefault("file_reads", {}).setdefault(self.agent, {})
+
+    def missing_requires(self, skill: Skill) -> list[str]:
+        """Soubory z `requires`, které agent od zhuštění kontextu nepřečetl."""
+        done = self._file_reads()
+        return [raw for raw in skill.requires if required_path(raw, self.root) not in done]
+
     def has_read(self, skill: Skill) -> bool:
-        """Načetl agent skill od posledního zhuštění kontextu?"""
-        return skill.name in self._reads()
+        """Načetl agent skill i jeho povinné soubory od posledního zhuštění kontextu?"""
+        return skill.name in self._reads() and not self.missing_requires(skill)
 
     def _require(self, skills: list[Skill], trigger: str) -> Decision:
         missing = [s for s in dict.fromkeys(skills) if not self.has_read(s)]
         if not missing:
             return Decision()
-        listing = "\n".join(f"- {s.rel_path}: {s.description[:160]}" for s in missing)
+        lines = []
+        for skill in missing:
+            if skill.name not in self._reads():
+                lines.append(f"- {skill.rel_path}: {skill.description[:160]}")
+            lines += [f"- {raw} (povinný soubor skillu {skill.name})"
+                      for raw in self.missing_requires(skill)]
         return Decision("deny", (
             f"Akce spadá pod skill, který jsi v této session (od posledního zhuštění "
-            f"kontextu) nenačetl. Spouštěč: {trigger}\n{listing}\n"
-            "Načti skill (nástrojem Skill, nebo celý SKILL.md nástrojem Read), "
-            "postupuj podle něj a akci zopakuj."))
+            f"kontextu) nenačetl celý i s povinnými soubory. Spouštěč: {trigger}\n"
+            + "\n".join(lines) + "\n"
+            "Načti skill (nástrojem Skill, nebo celý SKILL.md nástrojem Read) a uvedené "
+            "soubory nástrojem Read, postupuj podle nich a akci zopakuj."))
 
     def skills_for_path(self, path: Path, extra_text: str = "") -> list[Skill]:
         """Skilly, jejichž spouštěče odpovídají cestě."""
@@ -475,6 +542,7 @@ class Guard:
         name = skill_md_name(path, self.root)
         if name and any(s.name == name for s in self.skills):
             self._reads()[name] = seq
+        self._file_reads()[os.path.realpath(path)] = seq
         log = self.state["read_log"]
         log.append([path.as_posix(), seq])
         del log[:-200]
@@ -498,6 +566,10 @@ class Guard:
             for name in SKILL_PATH.findall(command):
                 if any(s.name == name for s in self.skills):
                     self._reads()[name] = seq
+            for skill in self.skills:
+                for raw in skill.requires:
+                    if raw in command:
+                        self._file_reads()[required_path(raw, self.root)] = seq
         for skill in self.skills:
             for rule in skill.verify:
                 if any(p.search(command) for p in rule.commands):
@@ -520,6 +592,7 @@ class Guard:
     def compacted(self) -> Decision:
         """Zhuštění kontextu: načtené skilly už v kontextu nejsou."""
         self.state["reads"] = {}
+        self.state["file_reads"] = {}
         return Decision(context=(
             "Kontext byl zhuštěn, obsah dříve načtených skillů v něm už není. "
             "Strážce (scripts/agent_guard) bude před akcemi vyžadovat jejich nové načtení."))
