@@ -13,6 +13,7 @@ Při vnitřní chybě strážce akci nezablokuje, ale ohlásí chybu uživateli.
 Pokud by chyba zablokovala všechny akce, agent by nemohl pracovat ani chybu
 opravit. Testy jsou v `tests/` a spouští je `.githooks/pre-commit`.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -20,10 +21,11 @@ import fcntl
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -33,13 +35,22 @@ import yaml
 STATE_TTL_DAYS = 14
 STOP_BLOCK_LIMIT = 3
 MAIN_AGENT = "main"
+TOOL_TIMEOUT = 10
+# Řádek `git status --porcelain=v1`: dva znaky stavu, mezera, cesta.
+PORCELAIN_PATH = 3
 
 READ_VERBS = re.compile(r"\b(cat|sed|head|tail|less|bat|more)\b")
 SKILL_PATH = re.compile(r"(?:^|[\s/'\"=])skills/([^/\s'\"]+)/SKILL\.md")
 SKILL_DIR = re.compile(r"^skills/([^/]+)/")
 # Pole frontmatteru podle specifikace Agent Skills (https://agentskills.io/specification).
-FRONTMATTER_FIELDS = {"name", "description", "license", "compatibility", "metadata",
-                      "allowed-tools"}
+FRONTMATTER_FIELDS = {
+    "name",
+    "description",
+    "license",
+    "compatibility",
+    "metadata",
+    "allowed-tools",
+}
 CD_TARGET = re.compile(r"(?:^|[;&|(]\s*)cd\s+(\"[^\"]+\"|'[^']+'|[^\s;&|)]+)")
 GIT_C_TARGET = re.compile(r"\bgit\b[^;&|\n]*?\s-C\s+(\"[^\"]+\"|'[^']+'|\S+)")
 GIT_OUTGOING = re.compile(r"\bgit\b[^;&|\n]*?\s(commit|push)\b")
@@ -211,7 +222,8 @@ def parse_frontmatter(text: str, where: str) -> dict[str, Any]:
     if unknown:
         raise GuardConfigError(
             f"{where}: pole mimo specifikaci Agent Skills: {sorted(unknown)}"
-            + (" (blok guard patří pod metadata)" if "guard" in unknown else ""))
+            + (" (blok guard patří pod metadata)" if "guard" in unknown else "")
+        )
     metadata = parsed.get("metadata") or {}
     if not isinstance(metadata, dict):
         raise GuardConfigError(f"{where}: metadata nejsou mapa")
@@ -228,21 +240,22 @@ def skill_from_frontmatter(name: str, data: dict[str, Any], where: str) -> Skill
     guard = data["guard"] or {}
     if not isinstance(guard, dict):
         raise GuardConfigError(f"{where}: guard není mapa")
-    unknown = set(guard) - {"paths", "commands", "verify", "foreign_repos", "isolate",
-                            "requires"}
+    unknown = set(guard) - {"paths", "commands", "verify", "foreign_repos", "isolate", "requires"}
     if unknown:
         raise GuardConfigError(f"{where}: neznámé klíče guard: {sorted(unknown)}")
     verify = []
     for index, item in enumerate(guard.get("verify") or []):
         if not item.get("commands") and not item.get("reads"):
             raise GuardConfigError(f"{where}: verify[{index}] bez commands i reads")
-        verify.append(VerifyRule(
-            rule_id=f"{name}#{index}",
-            paths=_paths(item.get("paths"), where),
-            commands=_regexes(item.get("commands")),
-            reads=tuple(str(r) for r in item.get("reads") or []),
-            message=str(item.get("message", "")),
-        ))
+        verify.append(
+            VerifyRule(
+                rule_id=f"{name}#{index}",
+                paths=_paths(item.get("paths"), where),
+                commands=_regexes(item.get("commands")),
+                reads=tuple(str(r) for r in item.get("reads") or []),
+                message=str(item.get("message", "")),
+            )
+        )
     foreign = None
     raw_foreign = guard.get("foreign_repos")
     if raw_foreign:
@@ -371,8 +384,15 @@ def state_dir() -> Path:
 
 def empty_state() -> dict[str, Any]:
     """Výchozí stav session."""
-    return {"seq": 0, "reads": {}, "read_log": [], "edits": {}, "verify_runs": {},
-            "snapshots": {}, "stop_blocks": 0}
+    return {
+        "seq": 0,
+        "reads": {},
+        "read_log": [],
+        "edits": {},
+        "verify_runs": {},
+        "snapshots": {},
+        "stop_blocks": 0,
+    }
 
 
 @contextlib.contextmanager
@@ -423,10 +443,12 @@ class Guard:
     notes: list[str] = field(default_factory=list)
 
     def _reads(self) -> dict[str, int]:
-        return self.state["reads"].setdefault(self.agent, {})
+        reads: dict[str, int] = self.state["reads"].setdefault(self.agent, {})
+        return reads
 
     def _file_reads(self) -> dict[str, int]:
-        return self.state.setdefault("file_reads", {}).setdefault(self.agent, {})
+        reads: dict[str, int] = self.state.setdefault("file_reads", {}).setdefault(self.agent, {})
+        return reads
 
     def missing_requires(self, skill: Skill) -> list[str]:
         """Soubory z `requires`, které agent od zhuštění kontextu nepřečetl."""
@@ -445,19 +467,29 @@ class Guard:
         for skill in missing:
             if skill.name not in self._reads():
                 lines.append(f"- {skill.rel_path}: {skill.description[:160]}")
-            lines += [f"- {raw} (povinný soubor skillu {skill.name})"
-                      for raw in self.missing_requires(skill)]
-        return Decision("deny", (
-            f"Akce spadá pod skill, který jsi v této session (od posledního zhuštění "
-            f"kontextu) nenačetl celý i s povinnými soubory. Spouštěč: {trigger}\n"
-            + "\n".join(lines) + "\n"
-            "Načti skill (nástrojem Skill, nebo celý SKILL.md nástrojem Read) a uvedené "
-            "soubory nástrojem Read, postupuj podle nich a akci zopakuj."))
+            lines += [
+                f"- {raw} (povinný soubor skillu {skill.name})"
+                for raw in self.missing_requires(skill)
+            ]
+        return Decision(
+            "deny",
+            (
+                f"Akce spadá pod skill, který jsi v této session (od posledního zhuštění "
+                f"kontextu) nenačetl celý i s povinnými soubory. Spouštěč: {trigger}\n"
+                + "\n".join(lines)
+                + "\n"
+                "Načti skill (nástrojem Skill, nebo celý SKILL.md nástrojem Read) a uvedené "
+                "soubory nástrojem Read, postupuj podle nich a akci zopakuj."
+            ),
+        )
 
     def skills_for_path(self, path: Path, extra_text: str = "") -> list[Skill]:
         """Skilly, jejichž spouštěče odpovídají cestě."""
-        found = [s for s in self.skills
-                 if any(path_rule_matches(r, path, self.root, extra_text) for r in s.paths)]
+        found = [
+            s
+            for s in self.skills
+            if any(path_rule_matches(r, path, self.root, extra_text) for r in s.paths)
+        ]
         rel = real_rel(path, self.root)
         own = SKILL_DIR.match(rel or "")
         if own and not (rel or "").endswith("/SKILL.md"):
@@ -468,8 +500,9 @@ class Guard:
 
     def pre_edit(self, path: Path, new_text: str) -> Decision:
         """Úprava souboru nástrojem (Edit, Write…)."""
-        return self._require(self.skills_for_path(path, new_text),
-                             f"úprava {rel_to_root(path, self.root) or path}")
+        return self._require(
+            self.skills_for_path(path, new_text), f"úprava {rel_to_root(path, self.root) or path}"
+        )
 
     def pre_bash(self, command: str, cwd: Path, tool_use_id: str) -> Decision:
         """Příkaz v shellu: spouštěče příkazů a akce do cizích repozitářů."""
@@ -487,11 +520,18 @@ class Guard:
         """Náročný příkaz musí běžet přes obal s limity (pravidlo `isolate`)."""
         for skill in self.skills:
             rule = skill.isolate
-            if rule and any(p.search(command) for p in rule.commands) \
-                    and not rule.wrapper.search(command):
-                return Decision("deny", (
-                    f"Příkaz musí běžet přes obal podle {skill.rel_path}"
-                    f"{': ' + rule.message if rule.message else ''}"))
+            if (
+                rule
+                and any(p.search(command) for p in rule.commands)
+                and not rule.wrapper.search(command)
+            ):
+                return Decision(
+                    "deny",
+                    (
+                        f"Příkaz musí běžet přes obal podle {skill.rel_path}"
+                        f"{': ' + rule.message if rule.message else ''}"
+                    ),
+                )
         return Decision()
 
     def check_foreign(self, command: str, cwd: Path) -> Decision:
@@ -510,9 +550,13 @@ class Guard:
         if problem:
             return Decision("deny", problem)
         if publishes(command) and any(s.foreign and s.foreign.confirm for s in rules):
-            return Decision("ask", (
-                f"Odesílá se do cizího projektu ({', '.join(targets)}). Uživatel musí "
-                "schválit text a příkaz (skill prispivani-do-cizich-projektu, krok 3)."))
+            return Decision(
+                "ask",
+                (
+                    f"Odesílá se do cizího projektu ({', '.join(targets)}). Uživatel musí "
+                    "schválit text a příkaz (skill prispivani-do-cizich-projektu, krok 3)."
+                ),
+            )
         return Decision()
 
     @staticmethod
@@ -520,18 +564,22 @@ class Guard:
         """Důvod zamítnutí, pokud odesílaný text nejde ověřit nebo obsahuje zakázané."""
         texts, unresolved = outgoing_texts(command, cwd)
         if unresolved:
-            return ("Text odesílaný do cizího repozitáře nejde zkontrolovat, soubor "
-                    f"{', '.join(unresolved)} nejde najít. Uveď cestu bez shellových "
-                    "proměnných (absolutní nebo relativní k pracovnímu adresáři).")
+            return (
+                "Text odesílaný do cizího repozitáře nejde zkontrolovat, soubor "
+                f"{', '.join(unresolved)} nejde najít. Uveď cestu bez shellových "
+                "proměnných (absolutní nebo relativní k pracovnímu adresáři)."
+            )
         for skill in rules:
             patterns = skill.foreign.forbid if skill.foreign else ()
             for pattern in patterns:
                 for text in texts:
                     hit = pattern.search(text)
                     if hit:
-                        return (f"Text pro cizí repozitář obsahuje zakázané `{hit.group(0)}` "
-                                f"(pravidlo {skill.rel_path}). Odstraň ho, včetně textu, "
-                                "který přidává nástroj automaticky.")
+                        return (
+                            f"Text pro cizí repozitář obsahuje zakázané `{hit.group(0)}` "
+                            f"(pravidlo {skill.rel_path}). Odstraň ho, včetně textu, "
+                            "který přidává nástroj automaticky."
+                        )
         return ""
 
     # události po akci ------------------------------------------------------
@@ -586,16 +634,21 @@ class Guard:
         if not need:
             return Decision()
         decision = self._require(need, f"příkaz změnil {', '.join(changed)}")
-        return Decision("feedback", decision.reason
-                        + " Změna už proběhla: po načtení skillu ji zkontroluj a oprav.")
+        return Decision(
+            "feedback",
+            decision.reason + " Změna už proběhla: po načtení skillu ji zkontroluj a oprav.",
+        )
 
     def compacted(self) -> Decision:
         """Zhuštění kontextu: načtené skilly už v kontextu nejsou."""
         self.state["reads"] = {}
         self.state["file_reads"] = {}
-        return Decision(context=(
-            "Kontext byl zhuštěn, obsah dříve načtených skillů v něm už není. "
-            "Strážce (scripts/agent_guard) bude před akcemi vyžadovat jejich nové načtení."))
+        return Decision(
+            context=(
+                "Kontext byl zhuštěn, obsah dříve načtených skillů v něm už není. "
+                "Strážce (scripts/agent_guard) bude před akcemi vyžadovat jejich nové načtení."
+            )
+        )
 
     def stop(self, stop_hook_active: bool) -> Decision:
         """Konec práce: proběhla po posledních úpravách předepsaná ověření?"""
@@ -606,35 +659,85 @@ class Guard:
         text = "\n".join(missing)
         if stop_hook_active and self.state["stop_blocks"] >= STOP_BLOCK_LIMIT:
             self.state["stop_blocks"] = 0
-            return Decision(user_message=(
-                "agent-guard: práce skončila bez ověření předepsaného skilly:\n" + text))
+            return Decision(
+                user_message=(
+                    "agent-guard: práce skončila bez ověření předepsaného skilly:\n" + text
+                )
+            )
         self.state["stop_blocks"] += 1
-        return Decision("block_stop", (
-            "Po posledních úpravách chybí ověření předepsané skillem. Proveď ho, "
-            "nebo uživateli výslovně napiš, proč ho provést nejde:\n" + text))
+        return Decision(
+            "block_stop",
+            (
+                "Po posledních úpravách chybí ověření předepsané skillem. Proveď ho, "
+                "nebo uživateli výslovně napiš, proč ho provést nejde:\n" + text
+            ),
+        )
 
     def unverified(self) -> list[str]:
         """Seznam nesplněných ověření."""
         result = []
         for skill in self.skills:
             for rule in skill.verify:
-                edited = [(Path(p), s) for p, s in self.state["edits"].items()
-                          if any(path_rule_matches(r, Path(p), self.root) for r in rule.paths)]
+                edited = [
+                    (Path(p), s)
+                    for p, s in self.state["edits"].items()
+                    if any(path_rule_matches(r, Path(p), self.root) for r in rule.paths)
+                ]
                 if not edited:
                     continue
                 last_edit = max(s for _, s in edited)
                 done = self.state["verify_runs"].get(rule.rule_id, 0)
-                done = max([done] + [s for p, s in self.state["read_log"]
-                                     if any(PurePosixPath(p).full_match(os.path.expanduser(g))
-                                            for g in rule.reads)])
+                done = max(
+                    [done]
+                    + [
+                        s
+                        for p, s in self.state["read_log"]
+                        if any(
+                            PurePosixPath(p).full_match(os.path.expanduser(g)) for g in rule.reads
+                        )
+                    ]
+                )
                 if done < last_edit:
-                    files = ", ".join(sorted({rel_to_root(p, self.root) or str(p)
-                                              for p, _ in edited}))
+                    files = ", ".join(
+                        sorted({rel_to_root(p, self.root) or str(p) for p, _ in edited})
+                    )
                     result.append(f"- {skill.rel_path}: {rule.message} (upraveno: {files})")
         return result
 
 
 # --- git a cizí repozitáře -------------------------------------------------
+
+
+def run_tool(
+    argv: Sequence[str], cwd: Path, timeout: float = TOOL_TIMEOUT
+) -> subprocess.CompletedProcess[str]:
+    """Spustí program a vrátí jeho výsledek; jediné místo, kde se spouští procesy.
+
+    Program se hledá v `PATH` a spouští se absolutní cestou, argumenty jdou
+    seznamem, bez shellu. Chybějící program vyvolá `FileNotFoundError`,
+    překročení času `subprocess.TimeoutExpired`; nenulový návratový kód ne.
+    """
+    program = shutil.which(argv[0])
+    if program is None:
+        raise FileNotFoundError(f"program {argv[0]} není v PATH")
+    return subprocess.run(  # noqa: S603 - absolutní cesta, seznam argumentů, bez shellu
+        [program, *argv[1:]],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        errors="replace",
+        timeout=timeout,
+        check=False,
+    )
+
+
+def git_output(directory: Path, *args: str) -> str | None:
+    """Výstup příkazu git v adresáři, nebo None, když git selže nebo chybí."""
+    try:
+        result = run_tool(["git", *args], directory)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return result.stdout if result.returncode == 0 else None
 
 
 def snapshot(root: Path) -> dict[str, list[int]]:
@@ -644,32 +747,26 @@ def snapshot(root: Path) -> dict[str, list[int]]:
     repozitáře (podprojekt s vlastním `skills/`), kdežto `git status
     --porcelain` vypisuje cesty vždy od kořene repozitáře, proto se převádějí.
     """
-    try:
-        top = subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, check=True, timeout=10).stdout.strip()
-        out = subprocess.run(
-            ["git", "-C", str(root), "status", "--porcelain=v1", "-z",
-             "--untracked-files=all", "--", "."],
-            capture_output=True, check=True, timeout=10).stdout
-    except (OSError, subprocess.SubprocessError):
+    top = git_output(root, "rev-parse", "--show-toplevel")
+    out = git_output(root, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--", ".")
+    if top is None or out is None:
         return {}
-    prefix = rel_to_root(Path(os.path.realpath(root)), Path(os.path.realpath(top)))
+    prefix = rel_to_root(Path(os.path.realpath(root)), Path(os.path.realpath(top.strip())))
     prefix = "" if prefix in (None, ".") else prefix + "/"
     result: dict[str, list[int]] = {}
-    entries = out.decode("utf-8", "replace").split("\0")
+    entries = out.split("\0")
     index = 0
     while index < len(entries):
         entry = entries[index]
         index += 1
-        if len(entry) < 4:
+        if len(entry) <= PORCELAIN_PATH:
             continue
         if entry[0] in "RC":
             index += 1  # původní název u přejmenování
-        rel = entry[3:]
+        rel = entry[PORCELAIN_PATH:]
         if not rel.startswith(prefix):
             continue
-        rel = rel[len(prefix):]
+        rel = rel[len(prefix) :]
         with contextlib.suppress(OSError):
             stat = (root / rel).stat()
             result[rel] = [stat.st_mtime_ns, stat.st_size]
@@ -693,23 +790,25 @@ def effective_dirs(command: str, cwd: Path) -> list[Path]:
 
 def remote_owners(directory: Path) -> set[str]:
     """Vlastníci vzdálených repozitářů (u ne-GitHubu celý host)."""
-    try:
-        out = subprocess.run(["git", "-C", str(directory), "remote", "-v"],
-                             capture_output=True, text=True, timeout=10, check=False).stdout
-    except (OSError, subprocess.SubprocessError):
-        return set()
+    out = git_output(directory, "remote", "-v") or ""
     owners = set()
     for line in out.splitlines():
-        parts = line.split()
-        if len(parts) < 2:
-            continue
-        url = parts[1]
-        match = GITHUB_OWNER.search(url)
-        if match:
-            owners.add(match.group(1).lower())
-        elif "://" in url or re.match(r"^[^/]+@[^/]+:", url):
-            owners.add(re.sub(r"^[a-z+]+://|^[^@]+@", "", url).split("/")[0].split(":")[0])
+        match line.split():
+            case [_, url, *_]:
+                owner = url_owner(url)
+                if owner:
+                    owners.add(owner)
     return owners
+
+
+def url_owner(url: str) -> str:
+    """Vlastník repozitáře z adresy remote (u ne-GitHubu host), jinak prázdný řetězec."""
+    match = GITHUB_OWNER.search(url)
+    if match:
+        return match.group(1).lower()
+    if "://" in url or re.match(r"^[^/]+@[^/]+:", url):
+        return re.sub(r"^[a-z+]+://|^[^@]+@", "", url).split("/")[0].split(":")[0]
+    return ""
 
 
 def api_writes(command: str) -> str:
@@ -722,8 +821,7 @@ def api_writes(command: str) -> str:
 
 def publishes(command: str) -> bool:
     """Zveřejní příkaz něco mimo stanici (push, PR, komentář, zápis přes API)?"""
-    return bool(GIT_PUSH.search(command) or GH_OUTGOING.search(command)
-                or api_writes(command))
+    return bool(GIT_PUSH.search(command) or GH_OUTGOING.search(command) or api_writes(command))
 
 
 def outgoing_targets(command: str, cwd: Path, own: frozenset[str]) -> list[str]:
@@ -749,15 +847,15 @@ def outgoing_texts(command: str, cwd: Path) -> tuple[list[str], list[str]]:
     unresolved = []
     base = effective_dirs(command, cwd)[-1]
     for raw in BODY_FILES.findall(command):
-        token = raw.strip("'\"")
-        if "$" in token or "`" in token:
-            unresolved.append(token)
+        arg = raw.strip("'\"")
+        if "$" in arg or "`" in arg:
+            unresolved.append(arg)
             continue
-        path = to_abs(token, base)
+        path = to_abs(arg, base)
         if path.is_file():
             texts.append(file_text(path))
-        elif token != "-":
-            unresolved.append(token)
+        elif arg != "-":
+            unresolved.append(arg)
     if GIT_OUTGOING.search(command):
         for directory in effective_dirs(command, cwd):
             texts += pending_commit_messages(directory, amend="--amend" in command)
@@ -766,13 +864,12 @@ def outgoing_texts(command: str, cwd: Path) -> tuple[list[str], list[str]]:
 
 def pending_commit_messages(directory: Path, amend: bool) -> list[str]:
     """Zprávy commitů, které ještě nejsou na žádném vzdáleném repozitáři."""
-    args = ["git", "-C", str(directory), "log", "--format=%B%x00", "HEAD", "--not", "--remotes"]
-    if amend:
-        args = ["git", "-C", str(directory), "log", "-1", "--format=%B%x00", "HEAD"]
-    try:
-        out = subprocess.run(args, capture_output=True, text=True, timeout=10, check=False).stdout
-    except (OSError, subprocess.SubprocessError):
-        return []
+    args = (
+        ["log", "-1", "--format=%B%x00", "HEAD"]
+        if amend
+        else ["log", "--format=%B%x00", "HEAD", "--not", "--remotes"]
+    )
+    out = git_output(directory, *args) or ""
     return [m for m in out.split("\0") if m.strip()]
 
 
@@ -785,8 +882,9 @@ def claude_edit_target(tool_input: dict[str, Any]) -> tuple[str, str]:
     """Cesta a nový text z parametrů nástroje pro úpravy."""
     path = str(tool_input.get("file_path") or tool_input.get("notebook_path") or "")
     parts = [str(tool_input.get(k, "")) for k in ("new_string", "content", "new_source")]
-    parts += [str(e.get("new_string", "")) for e in tool_input.get("edits") or []
-              if isinstance(e, dict)]
+    parts += [
+        str(e.get("new_string", "")) for e in tool_input.get("edits") or [] if isinstance(e, dict)
+    ]
     return path, "\n".join(parts)
 
 
@@ -838,8 +936,7 @@ def claude_output(event: str, decision: Decision) -> dict[str, Any]:
         out["decision"] = "block"
         out["reason"] = decision.reason
     if decision.context:
-        out["hookSpecificOutput"] = {"hookEventName": event,
-                                     "additionalContext": decision.context}
+        out["hookSpecificOutput"] = {"hookEventName": event, "additionalContext": decision.context}
     if decision.user_message:
         out["systemMessage"] = decision.user_message
     return out
@@ -864,7 +961,7 @@ def run_claude(raw: str, root: Path) -> dict[str, Any]:
 
 def main(argv: list[str]) -> int:
     """Vstupní bod: `guard.py claude` čte událost hooku ze stdin."""
-    if len(argv) != 2 or argv[1] != "claude":
+    if argv[1:] != ["claude"]:
         print("použití: guard.py claude < událost.json", file=sys.stderr)
         return 2
     root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path(__file__).resolve().parents[2])

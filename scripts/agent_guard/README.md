@@ -116,22 +116,39 @@ blokoval, agent by nemohl pracovat ani chybu opravit.
 - Ověření typu `reads` dokládá, že agent soubor otevřel, ne že ho opravdu
   prohlédl.
 
-## Testy
+## Testy a kontrola kódu
 
 ```bash
-cd scripts/agent_guard && python3 -m pytest -q tests
-pylint guard.py tests/*.py && ruff check .
+scripts/agent_guard/check.sh   # ruff, mypy --strict, pylint 10/10, unit testy
 ```
+
+`check.sh` pouští nástroje v izolovaném prostředí (`~/.cache/agent-guard/`)
+s pevnými verzemi z `requirements-dev.txt`. Pravidla ruffu (`ruff.toml`)
+odpovídají nejpřísnějšímu cíli rozvozu (docker-compose-apt-repo), aby kopie
+prošly CI všech cílů; `ruff.toml` se do cílů nekopíruje, tam platí jejich
+konfigurace. Strážce potřebuje Python 3.13 (`PurePath.full_match`).
+
+Testy jsou psané pro `unittest` (`self.assert…`), ne holým `assert`:
+Python s `-O` holé asserty vypustí a test pak nic neověří (ruff `S101`).
+Spustí je `python3 -m unittest discover -s tests` i pytest. Testy nespouštějí
+shell: změnu souborů, kterou by udělal příkaz, provede test sám mezi hookem
+před příkazem a po něm.
+
+Programy (git) strážce spouští jen přes `run_tool` v `guard.py`: absolutní
+cesta z `PATH`, seznam argumentů, bez shellu. Je to jediné místo s výjimkou
+z linteru (`noqa: S603`, ruff nepozná ověřený vstup); `check.sh` jinou
+nepustí.
 
 | Soubor | Co testuje | Shodný všude |
 |---|---|---|
 | `tests/test_guard.py` | jádro a adaptér na umělých skillech | ano |
 | `tests/test_repo_skills.py` | skilly repozitáře: blok guard, frontmatter podle specifikace, symlinky, hooky v `.claude/settings.json` | ano |
 | `tests/test_repo_triggers.py` | spouštěče konkrétních skillů repozitáře | ne (volitelný) |
-| `tests/guard_module.py` | načtení `guard.py` pro testy | ano |
+| `tests/test_rozvoz.py` | rozvoz do cílů | ne (jen linuxadm) |
+| `tests/guard_module.py` | načtení `guard.py` pro testy, sdílené pomůcky | ano |
 
-Testy pouští `.githooks/pre-commit` při změně strážce, skillu, symlinků
-skillů nebo `.claude/settings.json`.
+`.githooks/pre-commit` pouští `check.sh` nad obsahem indexu při změně
+strážce, skillu, symlinků skillů nebo `.claude/settings.json`.
 
 ## Strážce v dalších repozitářích
 
@@ -146,9 +163,12 @@ scripts/agent_guard/rozvoz.py           # srovná všechny cíle
 
 Skript zkopíruje strážce a soubory označené „shodný všude“, sdílené skilly
 a jejich řádky v `skills/INDEX.md`, zajistí symlinky skillů, hooky
-v `.claude/settings.json` (cizí hooky zachová) a krok v `.githooks/pre-commit`.
-Změnu strážce nebo sdíleného skillu dělej v linuxadm a pak spusť rozvoz;
-kopie neupravuj samostatně. Spouštěče projektových skillů (`metadata.guard`)
+v `.claude/settings.json` (cizí hooky zachová) a krok v `.githooks/pre-commit`
+(zastaralý krok nahradí). Po změně cíle spustí jeho `scripts/check.sh`, má-li
+ho; selhání ohlásí a vrátí kód 1, takový cíl se necommituje. Po commitu
+a pushi cíle se čeká na výsledek jeho CI (AGENTS.md, „Ověřování podle dopadu
+změny“). Změnu strážce nebo sdíleného skillu dělej v linuxadm a pak spusť
+rozvoz; kopie neupravuj samostatně. Spouštěče projektových skillů (`metadata.guard`)
 rozvoz neřeší.
 
 Podprojekt s vlastním `skills/` uvnitř repozitáře (např. `~/bin/typst_to_pdf`)
