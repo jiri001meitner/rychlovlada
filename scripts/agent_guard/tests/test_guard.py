@@ -11,6 +11,7 @@ repozitářích se strážcem (kanonická verze je v linuxadm).
 from __future__ import annotations
 
 import json
+import os
 import unittest
 from collections.abc import Callable
 from pathlib import Path
@@ -611,6 +612,156 @@ class IsolateTest(GuardCase):
         self.assert_allowed(pre)
         pre, _ = session.bash("grep heavy notes.txt", run=False)
         self.assert_allowed(pre)
+
+
+SKILL_CI = """---
+name: ci-skill
+description: Čekání na CI po pushi.
+metadata:
+  guard:
+    commands: ['\\bgit\\b[^;&|\\n]*?\\spush\\b']
+    ci_after_push:
+      settle_seconds: {settle}
+      message: "počkej na CI"
+---
+
+# CI skill
+"""
+
+FAKE_GH = """#!/bin/sh
+# Podvržené gh: vypíše běhy CI ze souboru a skončí zadaným kódem.
+cat "$FAKE_GH_RUNS"
+echo "$FAKE_GH_STDERR" >&2
+exit "$FAKE_GH_RC"
+"""
+
+
+class CiAfterPushTest(GuardCase):
+    """Po pushi nejde práci ukončit, dokud CI neskončí úspěchem."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        (self.project / "skills" / "ci-skill").mkdir()
+        self.set_settle(3600)
+        bin_dir = self.tmp / "bin"
+        bin_dir.mkdir()
+        (bin_dir / "gh").write_text(FAKE_GH, encoding="utf-8")
+        (bin_dir / "gh").chmod(0o755)
+        self.runs_file = self.tmp / "runs.json"
+        set_env(
+            self,
+            PATH=f"{bin_dir}:{os.environ['PATH']}",
+            FAKE_GH_RUNS=str(self.runs_file),
+            FAKE_GH_RC="0",
+            FAKE_GH_STDERR="",
+        )
+        git(self.project, "remote", "add", "origin", "https://github.com/me/proj.git")
+        self.session = Session(self.project)
+        self.session.read("skills/ci-skill/SKILL.md")
+
+    def set_settle(self, seconds: int) -> None:
+        """Nastaví ve skillu, jak dlouho se čeká na spuštění CI."""
+        (self.project / "skills" / "ci-skill" / "SKILL.md").write_text(
+            SKILL_CI.replace("{settle}", str(seconds)), encoding="utf-8"
+        )
+
+    def set_runs(self, *runs: tuple[str, str]) -> None:
+        """Běhy CI, které vrátí podvržené gh: (status, conclusion)."""
+        data = [
+            {"databaseId": i, "workflowName": f"wf{i}", "status": st, "conclusion": co}
+            for i, (st, co) in enumerate(runs, start=1)
+        ]
+        self.runs_file.write_text(json.dumps(data), encoding="utf-8")
+
+    def push(self) -> dict[str, Any]:
+        """Agent pushne; vrátí výstup hooku po příkazu."""
+        pre, post = self.session.bash("git push origin main")
+        self.assert_allowed(pre)
+        return post
+
+    def test_push_requires_skill(self) -> None:
+        """Push spadá pod skill čekání na CI."""
+        pre, _ = Session(self.project, "s2").bash("git push origin main", run=False)
+        self.assert_denied(pre)
+
+    def test_running_then_success(self) -> None:
+        """Běžící CI konec zablokuje, úspěšné ho pustí a push se z evidence smaže."""
+        self.set_runs(("in_progress", ""), ("completed", "success"))
+        self.assertEqual(self.push(), {})
+        out = self.session.stop()
+        self.assertEqual(out.get("decision"), "block")
+        self.assertIn("běží: wf1 (1)", out["reason"])
+        self.assertIn("počkej na CI", out["reason"])
+        self.set_runs(("completed", "success"), ("completed", "skipped"))
+        self.assertFalse(self.session.stop())
+        self.set_runs(("completed", "failure"))
+        self.assertFalse(self.session.stop())
+
+    def test_failure_blocks_until_limit(self) -> None:
+        """Selhané CI blokuje konec; po stropu se to dozví uživatel."""
+        self.set_runs(("completed", "failure"))
+        self.push()
+        for _ in range(guard.STOP_BLOCK_LIMIT):
+            out = self.session.stop(active=True)
+            self.assertEqual(out.get("decision"), "block")
+            self.assertIn("selhalo: wf1 (1: failure)", out["reason"])
+        out = self.session.stop(active=True)
+        self.assertNotIn("decision", out)
+        self.assertIn("selhalo", out["systemMessage"])
+        self.assertFalse(self.session.stop())
+
+    def test_new_push_replaces_failed(self) -> None:
+        """Nový push téhož repozitáře nahradí sledovaný commit."""
+        self.set_runs(("completed", "failure"))
+        self.push()
+        self.assertEqual(self.session.stop().get("decision"), "block")
+        git(self.project, "commit", "--allow-empty", "-qm", "oprava")
+        self.set_runs(("completed", "success"))
+        self.push()
+        self.assertFalse(self.session.stop())
+
+    def test_no_runs_waits_for_settle(self) -> None:
+        """Bez běhů CI se čeká `settle_seconds`, pak repozitář CI nemá."""
+        self.set_runs()
+        self.push()
+        out = self.session.stop()
+        self.assertIn("ještě nespustilo", out["reason"])
+        self.set_settle(0)
+        self.assertFalse(self.session.stop())
+
+    def test_gh_error_blocks(self) -> None:
+        """Nezjistitelný stav CI se nepovažuje za úspěch."""
+        self.set_runs()
+        set_env(self, FAKE_GH_RC="1", FAKE_GH_STDERR="not logged in")
+        self.push()
+        out = self.session.stop()
+        self.assertIn("nejde zjistit: not logged in", out["reason"])
+
+    def test_unresolved_push_target_gets_feedback(self) -> None:
+        """Push do adresáře v proměnné strážce nevystopuje a řekne to agentovi."""
+        self.set_runs()
+        _, post = self.session.bash('git -C "$d" push origin main', cwd=self.tmp)
+        self.assertEqual(post.get("decision"), "block")
+        self.assertIn("nepozná, do kterého repozitáře", post["reason"])
+        self.assertFalse(self.session.stop())
+
+    def test_non_github_remote_is_not_tracked(self) -> None:
+        """Repozitář bez remote na GitHubu se nesleduje (gh by CI nenašlo)."""
+        git(self.project, "remote", "set-url", "origin", "https://git.example.org/me/proj.git")
+        self.session.read("skills/foreign-skill/SKILL.md")  # cizí host je pro strážce cizí
+        self.set_runs(("in_progress", ""))
+        self.assertEqual(self.push(), {})
+        self.assertFalse(self.session.stop())
+
+    def test_without_ci_skill_push_is_not_tracked(self) -> None:
+        """Bez skillu s `ci_after_push` se push nesleduje."""
+        (self.project / "skills" / "ci-skill" / "SKILL.md").unlink()
+        (self.project / "skills" / "ci-skill").rmdir()
+        self.set_runs(("in_progress", ""))
+        session = Session(self.project, "s3")
+        _, post = session.bash("git push origin main")
+        self.assertEqual(post, {})
+        self.assertFalse(session.stop())
 
 
 class FrontmatterTest(unittest.TestCase):

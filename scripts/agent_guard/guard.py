@@ -21,24 +21,34 @@ import fcntl
 import json
 import os
 import re
-import shutil
-import subprocess
 import sys
 import time
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 import yaml
+from guard_git import (
+    GIT_PUSH,
+    changed_files,
+    ci_status,
+    effective_dirs,
+    file_text,
+    git_output,
+    has_github_remote,
+    outgoing_targets,
+    outgoing_texts,
+    publishes,
+    rel_to_root,
+    snapshot,
+    to_abs,
+)
 
 STATE_TTL_DAYS = 14
 STOP_BLOCK_LIMIT = 3
 MAIN_AGENT = "main"
-TOOL_TIMEOUT = 10
-# Řádek `git status --porcelain=v1`: dva znaky stavu, mezera, cesta.
-PORCELAIN_PATH = 3
-
 READ_VERBS = re.compile(r"\b(cat|sed|head|tail|less|bat|more)\b")
 SKILL_PATH = re.compile(r"(?:^|[\s/'\"=])skills/([^/\s'\"]+)/SKILL\.md")
 SKILL_DIR = re.compile(r"^skills/([^/]+)/")
@@ -51,25 +61,6 @@ FRONTMATTER_FIELDS = {
     "metadata",
     "allowed-tools",
 }
-CD_TARGET = re.compile(r"(?:^|[;&|(]\s*)cd\s+(\"[^\"]+\"|'[^']+'|[^\s;&|)]+)")
-GIT_C_TARGET = re.compile(r"\bgit\b[^;&|\n]*?\s-C\s+(\"[^\"]+\"|'[^']+'|\S+)")
-GIT_OUTGOING = re.compile(r"\bgit\b[^;&|\n]*?\s(commit|push)\b")
-GH_OUTGOING = re.compile(
-    r"\bgh\s+(?:(?:pr|issue)\s+(?:create|comment|edit|review|close|reopen|merge)"
-    r"|repo\s+fork|release\s+create)\b"
-)
-GH_API = re.compile(r"\bgh\s+api\b[^;&|\n]*")
-GH_API_WRITE = re.compile(
-    r"(?:-X|--method)\s*['\"]?(?:POST|PATCH|PUT|DELETE)|\s(?:-f|-F|--field|--raw-field)\s"
-)
-GH_API_REPO = re.compile(r"\brepos/([^/\s'\"]+)/([^/\s'\"]+)")
-GH_REPO_ARG = re.compile(r"(?:-R|--repo)[=\s]+['\"]?([^/\s'\"]+)/([^\s'\"]+)")
-BODY_FILES = re.compile(
-    r"(?:--body-file|--file|-F\s+body=@|--field\s+body=@|\bcommit\b[^;&|\n]*?\s-F)"
-    r"[=\s]*(\"[^\"]+\"|'[^']+'|[^\s;&|]+)"
-)
-GITHUB_OWNER = re.compile(r"github\.com[:/]+([^/]+)/")
-GIT_PUSH = re.compile(r"\bgit\b[^;&|\n]*?\spush\b")
 
 
 @dataclass(frozen=True)
@@ -113,6 +104,15 @@ class IsolateRule:
 
 
 @dataclass(frozen=True)
+class CiRule:
+    """Po `git push` nejde práci ukončit, dokud CI pushnutého commitu
+    neskončí úspěchem. Bez běhů CI po `settle_seconds` repozitář CI nemá."""
+
+    settle_seconds: int
+    message: str
+
+
+@dataclass(frozen=True)
 class GuardRules:
     """Pravidla z bloku `metadata.guard` jednoho skillu."""
 
@@ -122,6 +122,7 @@ class GuardRules:
     foreign: ForeignRules | None = None
     isolate: IsolateRule | None = None
     requires: tuple[str, ...] = ()
+    ci: CiRule | None = None
 
 
 @dataclass(frozen=True)
@@ -161,6 +162,11 @@ class Skill:
     def requires(self) -> tuple[str, ...]:
         """Soubory, které je nutné přečíst spolu se skillem."""
         return self.rules.requires
+
+    @property
+    def ci(self) -> CiRule | None:
+        """Čekání na CI po pushi."""
+        return self.rules.ci
 
     @property
     def rel_path(self) -> str:
@@ -240,7 +246,15 @@ def skill_from_frontmatter(name: str, data: dict[str, Any], where: str) -> Skill
     guard = data["guard"] or {}
     if not isinstance(guard, dict):
         raise GuardConfigError(f"{where}: guard není mapa")
-    unknown = set(guard) - {"paths", "commands", "verify", "foreign_repos", "isolate", "requires"}
+    unknown = set(guard) - {
+        "paths",
+        "commands",
+        "verify",
+        "foreign_repos",
+        "isolate",
+        "requires",
+        "ci_after_push",
+    }
     if unknown:
         raise GuardConfigError(f"{where}: neznámé klíče guard: {sorted(unknown)}")
     verify = []
@@ -274,6 +288,12 @@ def skill_from_frontmatter(name: str, data: dict[str, Any], where: str) -> Skill
             wrapper=re.compile(str(raw_isolate["wrapper"])),
             message=str(raw_isolate.get("message", "")),
         )
+    ci = None
+    raw_ci = guard.get("ci_after_push")
+    if raw_ci:
+        if not isinstance(raw_ci, dict) or not isinstance(raw_ci.get("settle_seconds"), int):
+            raise GuardConfigError(f"{where}: ci_after_push potřebuje settle_seconds (číslo)")
+        ci = CiRule(settle_seconds=raw_ci["settle_seconds"], message=str(raw_ci.get("message", "")))
     return Skill(
         name=name,
         description=str(data.get("description", "")),
@@ -284,6 +304,7 @@ def skill_from_frontmatter(name: str, data: dict[str, Any], where: str) -> Skill
             foreign=foreign,
             isolate=isolate,
             requires=tuple(str(r) for r in guard.get("requires") or []),
+            ci=ci,
         ),
     )
 
@@ -306,20 +327,6 @@ def load_skills(root: Path) -> list[Skill]:
 
 
 # --- cesty -----------------------------------------------------------------
-
-
-def to_abs(path: str, cwd: Path) -> Path:
-    """Absolutní cesta bez rozbalování symlinků."""
-    expanded = os.path.expandvars(os.path.expanduser(path.strip("'\"")))
-    return Path(os.path.normpath(cwd / expanded))
-
-
-def rel_to_root(path: Path, root: Path) -> str | None:
-    """Cesta relativně ke kořeni projektu, nebo None mimo projekt."""
-    try:
-        return path.relative_to(root).as_posix()
-    except ValueError:
-        return None
 
 
 def required_path(raw: str, root: Path) -> str:
@@ -356,14 +363,6 @@ def glob_matches(rule: PathRule, path: Path, root: Path) -> bool:
     return rel is not None and PurePosixPath(rel).full_match(rule.glob)
 
 
-def file_text(path: Path) -> str:
-    """Obsah textového souboru, prázdný řetězec u chyby nebo binárky."""
-    try:
-        return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return ""
-
-
 def path_rule_matches(rule: PathRule, path: Path, root: Path, extra_text: str = "") -> bool:
     """Shoda cesty a případně obsahu (současný obsah + nový text úpravy)."""
     if not glob_matches(rule, path, root):
@@ -392,6 +391,7 @@ def empty_state() -> dict[str, Any]:
         "verify_runs": {},
         "snapshots": {},
         "stop_blocks": 0,
+        "pushes": {},
     }
 
 
@@ -606,10 +606,20 @@ class Guard:
         self.state["edits"][path.as_posix()] = next_seq(self.state)
         self.state["stop_blocks"] = 0
 
-    def post_bash(self, command: str, tool_use_id: str) -> Decision:
-        """Úspěšně doběhlý příkaz: čtení skillu, ověření, změněné soubory."""
+    def post_bash(self, command: str, tool_use_id: str, cwd: Path | None = None) -> Decision:
+        """Úspěšně doběhlý příkaz: čtení skillu, ověření, push, změněné soubory."""
         seq = next_seq(self.state)
         self.state["stop_blocks"] = 0
+        self._note_command(command, seq)
+        push_note = self.record_push(command, cwd or self.root)
+        decision = self._changed_by_command(tool_use_id, seq)
+        if push_note:
+            reason = f"{decision.reason} {push_note}" if decision.reason else push_note
+            return Decision("feedback", reason)
+        return decision
+
+    def _note_command(self, command: str, seq: int) -> None:
+        """Zaznamená načtení skillů a povinných souborů a proběhlá ověření."""
         if READ_VERBS.search(command):
             for name in SKILL_PATH.findall(command):
                 if any(s.name == name for s in self.skills):
@@ -622,6 +632,9 @@ class Guard:
             for rule in skill.verify:
                 if any(p.search(command) for p in rule.commands):
                     self.state["verify_runs"][rule.rule_id] = seq
+
+    def _changed_by_command(self, tool_use_id: str, seq: int) -> Decision:
+        """Soubory změněné příkazem; zpětná vazba, spadají-li pod nenačtený skill."""
         before = self.state["snapshots"].pop(tool_use_id, None)
         if before is None:
             return Decision()
@@ -639,6 +652,52 @@ class Guard:
             decision.reason + " Změna už proběhla: po načtení skillu ji zkontroluj a oprav.",
         )
 
+    def ci_rule(self) -> CiRule | None:
+        """Pravidlo čekání na CI, má-li ho některý skill projektu."""
+        return next((s.ci for s in self.skills if s.ci), None)
+
+    def record_push(self, command: str, cwd: Path) -> str:
+        """Zapíše pushnutý commit; vrátí upozornění, když push nejde sledovat."""
+        if not GIT_PUSH.search(command) or self.ci_rule() is None:
+            return ""
+        pushes = self.state.setdefault("pushes", {}).setdefault(self.agent, {})
+        found = False
+        for directory in effective_dirs(command, cwd):
+            top = git_output(directory, "rev-parse", "--show-toplevel")
+            head = git_output(directory, "rev-parse", "HEAD")
+            if top is None or head is None:
+                continue
+            found = True
+            if not has_github_remote(directory):
+                continue
+            pushes[top.strip()] = {"sha": head.strip(), "time": time.time()}
+        if found:
+            return ""
+        return (
+            "Strážce nepozná, do kterého repozitáře push šel (cesta v proměnné nebo "
+            "ve skriptu), a CI za tebe nepohlídá. Počkej na výsledek CI každého "
+            "pushnutého commitu sám: gh run list --commit <sha>, gh run watch <id> "
+            "--exit-status."
+        )
+
+    def ci_problems(self, rule: CiRule) -> list[str]:
+        """Pushe, jejichž CI ještě běží nebo selhalo; hotové z evidence odebere."""
+        pushes: dict[str, dict[str, Any]] = self.state.get("pushes", {}).get(self.agent, {})
+        if not pushes:
+            return []
+        items = sorted(pushes.items())
+        with ThreadPoolExecutor(max_workers=len(items)) as pool:
+            results = list(
+                pool.map(lambda item: ci_status(Path(item[0]), item[1], rule.settle_seconds), items)
+            )
+        problems = []
+        for (top, _), result in zip(items, results, strict=True):
+            if result:
+                problems.append(f"- {top}: {result}")
+            else:
+                del pushes[top]
+        return problems
+
     def compacted(self) -> Decision:
         """Zhuštění kontextu: načtené skilly už v kontextu nejsou."""
         self.state["reads"] = {}
@@ -651,14 +710,24 @@ class Guard:
         )
 
     def stop(self, stop_hook_active: bool) -> Decision:
-        """Konec práce: proběhla po posledních úpravách předepsaná ověření?"""
+        """Konec práce: proběhla předepsaná ověření a doběhlo CI pushnutých commitů?"""
         missing = self.unverified()
+        rule = self.ci_rule()
+        ci = self.ci_problems(rule) if rule else []
+        if ci and rule:
+            missing.append(
+                "- CI pushnutých commitů ještě neskončilo úspěchem"
+                + (f" ({rule.message})" if rule.message else "")
+                + ":"
+            )
+            missing += [f"  {line}" for line in ci]
         if not missing:
             self.state["stop_blocks"] = 0
             return Decision()
         text = "\n".join(missing)
         if stop_hook_active and self.state["stop_blocks"] >= STOP_BLOCK_LIMIT:
             self.state["stop_blocks"] = 0
+            self.state.get("pushes", {}).pop(self.agent, None)
             return Decision(
                 user_message=(
                     "agent-guard: práce skončila bez ověření předepsaného skilly:\n" + text
@@ -705,174 +774,6 @@ class Guard:
         return result
 
 
-# --- git a cizí repozitáře -------------------------------------------------
-
-
-def run_tool(
-    argv: Sequence[str], cwd: Path, timeout: float = TOOL_TIMEOUT
-) -> subprocess.CompletedProcess[str]:
-    """Spustí program a vrátí jeho výsledek; jediné místo, kde se spouští procesy.
-
-    Program se hledá v `PATH` a spouští se absolutní cestou, argumenty jdou
-    seznamem, bez shellu. Chybějící program vyvolá `FileNotFoundError`,
-    překročení času `subprocess.TimeoutExpired`; nenulový návratový kód ne.
-    """
-    program = shutil.which(argv[0])
-    if program is None:
-        raise FileNotFoundError(f"program {argv[0]} není v PATH")
-    return subprocess.run(  # noqa: S603 - absolutní cesta, seznam argumentů, bez shellu
-        [program, *argv[1:]],
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        errors="replace",
-        timeout=timeout,
-        check=False,
-    )
-
-
-def git_output(directory: Path, *args: str) -> str | None:
-    """Výstup příkazu git v adresáři, nebo None, když git selže nebo chybí."""
-    try:
-        result = run_tool(["git", *args], directory)
-    except (OSError, subprocess.SubprocessError):
-        return None
-    return result.stdout if result.returncode == 0 else None
-
-
-def snapshot(root: Path) -> dict[str, list[int]]:
-    """Změněné a nesledované soubory projektu s mtime a velikostí.
-
-    Klíčem je cesta relativně ke kořeni projektu. Ten může být podadresářem
-    repozitáře (podprojekt s vlastním `skills/`), kdežto `git status
-    --porcelain` vypisuje cesty vždy od kořene repozitáře, proto se převádějí.
-    """
-    top = git_output(root, "rev-parse", "--show-toplevel")
-    out = git_output(root, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--", ".")
-    if top is None or out is None:
-        return {}
-    prefix = rel_to_root(Path(os.path.realpath(root)), Path(os.path.realpath(top.strip())))
-    prefix = "" if prefix in (None, ".") else prefix + "/"
-    result: dict[str, list[int]] = {}
-    entries = out.split("\0")
-    index = 0
-    while index < len(entries):
-        entry = entries[index]
-        index += 1
-        if len(entry) <= PORCELAIN_PATH:
-            continue
-        if entry[0] in "RC":
-            index += 1  # původní název u přejmenování
-        rel = entry[PORCELAIN_PATH:]
-        if not rel.startswith(prefix):
-            continue
-        rel = rel[len(prefix) :]
-        with contextlib.suppress(OSError):
-            stat = (root / rel).stat()
-            result[rel] = [stat.st_mtime_ns, stat.st_size]
-            continue
-        result[rel] = [0, -1]
-    return result
-
-
-def changed_files(before: dict[str, list[int]], after: dict[str, list[int]]) -> list[str]:
-    """Soubory, které se mezi dvěma snímky změnily."""
-    keys = set(before) | set(after)
-    return sorted(k for k in keys if before.get(k) != after.get(k))
-
-
-def effective_dirs(command: str, cwd: Path) -> list[Path]:
-    """Adresáře, ve kterých příkaz pracuje (`cd`, `git -C`, jinak cwd)."""
-    dirs = [to_abs(m, cwd) for m in CD_TARGET.findall(command)]
-    dirs += [to_abs(m, cwd) for m in GIT_C_TARGET.findall(command)]
-    return dirs or [cwd]
-
-
-def remote_owners(directory: Path) -> set[str]:
-    """Vlastníci vzdálených repozitářů (u ne-GitHubu celý host)."""
-    out = git_output(directory, "remote", "-v") or ""
-    owners = set()
-    for line in out.splitlines():
-        match line.split():
-            case [_, url, *_]:
-                owner = url_owner(url)
-                if owner:
-                    owners.add(owner)
-    return owners
-
-
-def url_owner(url: str) -> str:
-    """Vlastník repozitáře z adresy remote (u ne-GitHubu host), jinak prázdný řetězec."""
-    match = GITHUB_OWNER.search(url)
-    if match:
-        return match.group(1).lower()
-    if "://" in url or re.match(r"^[^/]+@[^/]+:", url):
-        return re.sub(r"^[a-z+]+://|^[^@]+@", "", url).split("/")[0].split(":")[0]
-    return ""
-
-
-def api_writes(command: str) -> str:
-    """Zapisující volání `gh api` (POST, PATCH, pole -f/-F), jinak prázdný řetězec."""
-    api = GH_API.search(command)
-    if api and GH_API_WRITE.search(api.group(0)):
-        return api.group(0)
-    return ""
-
-
-def publishes(command: str) -> bool:
-    """Zveřejní příkaz něco mimo stanici (push, PR, komentář, zápis přes API)?"""
-    return bool(GIT_PUSH.search(command) or GH_OUTGOING.search(command) or api_writes(command))
-
-
-def outgoing_targets(command: str, cwd: Path, own: frozenset[str]) -> list[str]:
-    """Cizí cíle, kam příkaz zapisuje (commit, push, PR, komentáře)."""
-    owners: set[str] = set()
-    git_out = bool(GIT_OUTGOING.search(command))
-    gh_out = bool(GH_OUTGOING.search(command))
-    api = api_writes(command)
-    api_write = bool(api)
-    if api_write:
-        owners |= {m[0].lower() for m in GH_API_REPO.findall(api)}
-    if gh_out:
-        owners |= {m[0].lower() for m in GH_REPO_ARG.findall(command)}
-    if git_out or ((gh_out or api_write) and not owners):
-        for directory in effective_dirs(command, cwd):
-            owners |= remote_owners(directory)
-    return sorted(owners - own)
-
-
-def outgoing_texts(command: str, cwd: Path) -> tuple[list[str], list[str]]:
-    """Texty, které příkaz odešle: příkaz sám, soubory s tělem, zprávy commitů."""
-    texts = [command]
-    unresolved = []
-    base = effective_dirs(command, cwd)[-1]
-    for raw in BODY_FILES.findall(command):
-        arg = raw.strip("'\"")
-        if "$" in arg or "`" in arg:
-            unresolved.append(arg)
-            continue
-        path = to_abs(arg, base)
-        if path.is_file():
-            texts.append(file_text(path))
-        elif arg != "-":
-            unresolved.append(arg)
-    if GIT_OUTGOING.search(command):
-        for directory in effective_dirs(command, cwd):
-            texts += pending_commit_messages(directory, amend="--amend" in command)
-    return texts, unresolved
-
-
-def pending_commit_messages(directory: Path, amend: bool) -> list[str]:
-    """Zprávy commitů, které ještě nejsou na žádném vzdáleném repozitáři."""
-    args = (
-        ["log", "-1", "--format=%B%x00", "HEAD"]
-        if amend
-        else ["log", "--format=%B%x00", "HEAD", "--not", "--remotes"]
-    )
-    out = git_output(directory, *args) or ""
-    return [m for m in out.split("\0") if m.strip()]
-
-
 # --- adaptér Claude Code ---------------------------------------------------
 
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
@@ -912,7 +813,7 @@ def claude_dispatch(guard: Guard, payload: dict[str, Any]) -> Decision:
         if path:
             guard.post_edit(to_abs(path, cwd))
     elif event == "PostToolUse" and tool == "Bash":
-        decision = guard.post_bash(str(tool_input.get("command", "")), tool_use_id)
+        decision = guard.post_bash(str(tool_input.get("command", "")), tool_use_id, cwd)
     elif event == "PostToolUseFailure" and tool == "Bash":
         guard.state["snapshots"].pop(tool_use_id, None)
     elif event == "SessionStart" and payload.get("source") == "compact":

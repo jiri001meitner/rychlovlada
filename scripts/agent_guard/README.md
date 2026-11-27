@@ -13,6 +13,8 @@ Text pokynu to nezaručí. Strážce to vynutí na úrovni prostředí:
    vzdálený repozitář nepatří vlastníkům z `own_owners`, vyžaduje skill
    `prispivani-do-cizich-projektu`. Odesílaný text nesmí obsahovat zakázané
    vzory a odeslání ven musí schválit uživatel.
+4. **CI po pushi.** Po `git push` nejde práci ukončit, dokud CI pushnutého
+   commitu neskončí úspěchem (skill `cekani-na-ci`, klíč `ci_after_push`).
 
 Strážce nic nerozhoduje „podle uvážení“. Pravidla jsou v blocích
 `metadata.guard` ve frontmatteru skillů a jejich dodržení se dá otestovat.
@@ -50,6 +52,9 @@ metadata:
       own_owners: [jiri001meitner]
       forbid: ['Co-Authored-By:\s*Claude']     # regexy, bez ohledu na velikost
       confirm: true                            # push, PR, komentář schválí uživatel
+    ci_after_push:               # jen skill cekani-na-ci
+      settle_seconds: 90                       # bez běhů CI po této době repo CI nemá
+      message: "sleduj běhy do konce"
     isolate:                     # náročný příkaz jen přes obal s limity
       commands: ['(?:^|[;&|(]\s*)magick\b']   # regexy na příkaz
       wrapper: 'skills/izolovane-testy/scripts/izolovane\.sh'   # musí být v příkazu
@@ -71,6 +76,15 @@ vyčerpat paměť nebo disk (skill `izolovane-testy`).
 načtení `skills/<nazev>/SKILL.md` automaticky. Přečtení jiného souboru ze
 složky skillu (např. `references/`) se za načtení skillu nepočítá.
 
+`ci_after_push` sleduje úspěšné `git push` v repozitářích s remote na
+GitHubu: zapíše si kořen repozitáře a `HEAD` (cestu bere z pracovního
+adresáře, `cd` a `git -C`). Při `Stop` se pro každý sledovaný commit
+zeptá `gh run list --commit <sha>` a konec zablokuje, když běh běží, selhal,
+stav nejde zjistit, nebo se CI do `settle_seconds` od pushe nespustilo.
+Hotové commity z evidence vyřadí, nový push téhož repozitáře nahradí starý.
+Push s cestou v proměnné nebo ve skriptu nevystopuje a hned to agentovi
+ohlásí.
+
 `contains` se vyhodnocuje proti současnému obsahu souboru i proti novému textu
 úpravy. Globy používají `**` pro libovolný počet adresářů
 (`PurePath.full_match`).
@@ -84,6 +98,7 @@ složky skillu (např. `references/`) se za načtení skillu nepočítá.
 | úprava nástrojem (Edit, Write, MultiEdit, NotebookEdit) | soubor upravený |
 | příkaz v shellu | před a po běhu se porovná `git status` projektu; změněné soubory se počítají jako upravené a agent dostane zpětnou vazbu, pokud spadají pod nenačtený skill |
 | úspěšný příkaz odpovídající `verify.commands` | ověření proběhlo (neúspěšný se nepočítá) |
+| úspěšný `git push` (je-li skill s `ci_after_push`) | repozitář a pushnutý commit; při konci práce se ověří jeho CI |
 | zhuštění kontextu | načtené skilly se vynulují |
 
 Stav je pro každou session a každého subagenta zvlášť
@@ -134,7 +149,9 @@ Spustí je `python3 -m unittest discover -s tests` i pytest. Testy nespouštěj�
 shell: změnu souborů, kterou by udělal příkaz, provede test sám mezi hookem
 před příkazem a po něm.
 
-Programy (git) strážce spouští jen přes `run_tool` v `guard.py`: absolutní
+Kód je ve dvou modulech: `guard.py` (skilly, stav, jádro, adaptér Claude
+Code) a `guard_git.py` (git, GitHub a CI, bez znalosti skillů a stavu).
+Programy (git, gh) strážce spouští jen přes `run_tool` v `guard_git.py`: absolutní
 cesta z `PATH`, seznam argumentů, bez shellu. Je to jediné místo s výjimkou
 z linteru (`noqa: S603`, ruff nepozná ověřený vstup); `check.sh` jinou
 nepustí.
@@ -145,7 +162,7 @@ nepustí.
 | `tests/test_repo_skills.py` | skilly repozitáře: blok guard, frontmatter podle specifikace, symlinky, hooky v `.claude/settings.json` | ano |
 | `tests/test_repo_triggers.py` | spouštěče konkrétních skillů repozitáře | ne (volitelný) |
 | `tests/test_rozvoz.py` | rozvoz do cílů | ne (jen linuxadm) |
-| `tests/guard_module.py` | načtení `guard.py` pro testy, sdílené pomůcky | ano |
+| `tests/guard_module.py` | načtení `guard.py` a `guard_git.py` pro testy, sdílené pomůcky | ano |
 
 `.githooks/pre-commit` pouští `check.sh` nad obsahem indexu při změně
 strážce, skillu, symlinků skillů nebo `.claude/settings.json`.
@@ -162,6 +179,7 @@ scripts/agent_guard/rozvoz.py           # srovná všechny cíle
 ```
 
 Skript zkopíruje strážce a soubory označené „shodný všude“, sdílené skilly
+(`cekani-na-ci` do všech cílů, `web-*` do webových)
 a jejich řádky v `skills/INDEX.md`, zajistí symlinky skillů, hooky
 v `.claude/settings.json` (cizí hooky zachová) a krok v `.githooks/pre-commit`
 (zastaralý krok nahradí). Po změně cíle spustí jeho `scripts/check.sh`, má-li

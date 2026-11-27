@@ -1,4 +1,5 @@
-"""Načte `guard.py` jako modul pro testy (není to balíček) a sdílené pomůcky."""
+"""Načte `guard.py` a `guard_git.py` jako moduly pro testy (nejsou to balíčky)
+a sdílené pomůcky."""
 
 from __future__ import annotations
 
@@ -24,7 +25,10 @@ def load_module(name: str, path: Path) -> ModuleType:
     return module
 
 
-guard = load_module("guard", Path(__file__).resolve().parents[1] / "guard.py")
+_GUARD_DIR = Path(__file__).resolve().parents[1]
+# guard.py importuje guard_git; ten musí být v sys.modules dřív.
+guard_git = load_module("guard_git", _GUARD_DIR / "guard_git.py")
+guard = load_module("guard", _GUARD_DIR / "guard.py")
 
 # Kořen repozitáře, ve kterém strážce leží (scripts/agent_guard/tests/…).
 REPO = Path(__file__).resolve().parents[3]
@@ -56,6 +60,6 @@ def isolate_git_env(test: unittest.TestCase) -> None:
 
 def git(cwd: Path, *args: str) -> None:
     """Spustí git v adresáři s pevnou identitou autora; selhání je chyba testu."""
-    result = guard.run_tool(["git", "-c", "user.name=T", "-c", "user.email=t@e", *args], cwd)
+    result = guard_git.run_tool(["git", "-c", "user.name=T", "-c", "user.email=t@e", *args], cwd)
     if result.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)}: {result.stderr.strip()}")
